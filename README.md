@@ -9,7 +9,7 @@ An offline-first ESP32-S3 smart-home controller and locally hosted web dashboard
 ## Try the interactive demo
 
 ```sh
-python3 -m http.server 4173 --bind 0.0.0.0 --directory data
+python -m http.server 4173 --bind 0.0.0.0 --directory data
 # visit http://localhost:4173
 ```
 
