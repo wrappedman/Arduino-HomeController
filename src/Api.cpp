@@ -26,7 +26,8 @@ static bool auth(bool write=false) {
   return true;
 }
 void broadcastMessage(const String& payload) {
-  for (uint8_t i=0;i<16;i++) if (socketAuth[i]) socket.sendTXT(i,payload);
+  String frame=payload; // WebSocketsServer::sendTXT requires a mutable String reference.
+  for (uint8_t i=0;i<16;i++) if (socketAuth[i]) socket.sendTXT(i,frame);
 }
 void broadcastState(const String& id, float value) {
   DynamicJsonDocument d(192); d["type"]="device"; d["id"]=id; d["value"]=value;

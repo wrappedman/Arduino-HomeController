@@ -82,6 +82,14 @@ fs.mkdirSync(output, { recursive: true });
     await guide.waitForFunction(() => [...document.querySelectorAll('img')].every(image => image.complete && image.naturalWidth > 0), null, {timeout:10000});
     assert.ok(await guide.evaluate(() => document.fonts.check('16px Vazirmatn')), 'Vazirmatn must be loaded locally');
     await guide.close();
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 1 });
+    await phone.goto(base);
+    await phone.locator('.hero').waitFor();
+    await phone.locator('[data-action="menu"]').click();
+    assert.ok(await phone.locator('.sidebar.open [data-nav="designer"]').isVisible(), 'Mobile drawer must expose designer');
+    await phone.locator('.sidebar.open [data-nav="designer"]').click();
+    assert.ok(await phone.locator('#canvas-zone').isVisible(), 'Designer must open on mobile');
+    await phone.close();
     assert.deepEqual(errors, []);
     console.log('Browser interaction test passed: registration, publish, reload persistence, mapped command.');
   } finally { await browser.close(); }
