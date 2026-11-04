@@ -45,9 +45,10 @@ jobs:
             exit 1
           fi
           tail -n 15 arduino-build.log
-          test -s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin" || { echo '::error::Arduino firmware binary missing'; exit 1; }
+          firmware=$(find "$RUNNER_TEMP/shap-arduino-build" -maxdepth 1 -type f \( -name 'SHAP.bin' -o -name 'SHAP.ino.bin' \) -print -quit)
+          test -n "$firmware" && test -s "$firmware" || { ls -lh "$RUNNER_TEMP/shap-arduino-build"; echo '::error::Arduino firmware binary missing'; exit 1; }
           cmp arduino/SHAP/partitions.csv "$RUNNER_TEMP/shap-arduino-build/partitions.csv" || { echo '::error::Custom partitions.csv not used'; exit 1; }
-          test "$(stat -c %s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin")" -lt 5242880 || { echo '::error::Arduino firmware exceeds 5MB app partition'; exit 1; }
+          test "$(stat -c %s "$firmware")" -lt 5242880 || { echo '::error::Arduino firmware exceeds 5MB app partition'; exit 1; }
   firmware:
     runs-on: ubuntu-latest
     steps:
