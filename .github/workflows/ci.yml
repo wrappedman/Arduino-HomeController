@@ -1,0 +1,59 @@
+name: SHAP build and tests
+on:
+  push:
+    branches: [arena/8a6b6b7d-arduino-homecontroller]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: node --check data/app.js
+      - run: python3 -m unittest discover -s test -p 'test_*.py'
+  arduino-ide-sketch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install Arduino IDE board core and sketch libraries
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@2.0.17 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install 'ArduinoJson@6.21.5'
+          arduino-cli lib install 'WebSockets@2.6.1'
+      - name: Compile the exact Arduino IDE sketch
+        run: |
+          if ! arduino-cli compile --fqbn 'esp32:esp32:esp32s3:FlashSize=16M,FlashMode=qio,PSRAM=opi,CDCOnBoot=default,PartitionScheme=app3M_fat9M_16MB' --build-path "$RUNNER_TEMP/shap-arduino-build" arduino/SHAP > arduino-build.log 2>&1; then
+            tail -n 60 arduino-build.log
+            python3 - <<'PYLOG'
+          from pathlib import Path
+          import re
+          lines=Path('arduino-build.log').read_text(errors='replace').splitlines()
+          issues=[line for line in lines if re.search(r'error:|Error:|fatal error|FAILED|undefined reference|not found',line,re.I)]
+          text='\n'.join((issues[-20:]+['--- last lines ---']+lines[-15:]))[-3800:]
+          print('::error title=Arduino IDE sketch compile failed::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          PYLOG
+            exit 1
+          fi
+          tail -n 15 arduino-build.log
+          firmware=$(find "$RUNNER_TEMP/shap-arduino-build" -maxdepth 1 -type f \( -name 'SHAP.bin' -o -name 'SHAP.ino.bin' \) -print -quit)
+          test -n "$firmware" && test -s "$firmware" || { ls -lh "$RUNNER_TEMP/shap-arduino-build"; echo '::error::Arduino firmware binary missing'; exit 1; }
+          cmp arduino/SHAP/partitions.csv "$RUNNER_TEMP/shap-arduino-build/partitions.csv" || { echo '::error::Custom partitions.csv not used'; exit 1; }
+          test "$(stat -c %s "$firmware")" -lt 5242880 || { echo '::error::Arduino firmware exceeds 5MB app partition'; exit 1; }
+          (cd "$RUNNER_TEMP/shap-arduino-build" && sha256sum *.bin > checksums.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shap-arduino-ide-n16r8-unvalidated
+          path: |
+            ${{ runner.temp }}/shap-arduino-build/*.bin
+            ${{ runner.temp }}/shap-arduino-build/checksums.sha256
+          if-no-files-found: error

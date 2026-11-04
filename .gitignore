@@ -1,0 +1,11 @@
+.pio/
+.vscode/
+.DS_Store
+*.bin
+*.elf
+*.map
+node_modules/
+__pycache__/
+*.pyc
+
+.venv/
