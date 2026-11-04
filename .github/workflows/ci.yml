@@ -1,7 +1,7 @@
 name: SHAP build and tests
 on:
   push:
-    branches: ['arena/**']
+    branches: [main, 'arena/**']
   pull_request:
   workflow_dispatch:
 permissions:
