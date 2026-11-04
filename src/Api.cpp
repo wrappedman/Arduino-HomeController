@@ -167,7 +167,7 @@ static void handleFallback() {
     if (filename.isEmpty() || filename.length()>64 || filename.indexOf("..")>=0) { web.send(404,"text/plain","Not found"); return; }
     for (size_t i=0;i<filename.length();i++) if (!isAlphaNumeric(filename[i]) && filename[i]!='-' && filename[i]!='_' && filename[i]!='.') { web.send(404,"text/plain","Not found"); return; }
     if (path.startsWith("/guide/") && filename.endsWith(".jpg")) { staticFile(path,"image/jpeg"); return; }
-    if (path=="/guide/wiring.svg") { staticFile(path,"image/svg+xml"); return; }
+    if (path=="/guide/wiring.svg" || path=="/guide/upload-flow.svg") { staticFile(path,"image/svg+xml"); return; }
     if (path.startsWith("/fonts/") && filename.endsWith(".woff2")) { staticFile(path,"font/woff2"); return; }
     if (path=="/fonts/OFL.txt") { staticFile(path,"text/plain; charset=utf-8"); return; }
   }

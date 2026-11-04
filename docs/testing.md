@@ -1,5 +1,7 @@
 # Test plan and current evidence
 
+For first-time installation without Python or PlatformIO, use [راهنمای نصب از صفر](install-fa.md), not the test commands below.
+
 ## Automated checks
 
 ```sh

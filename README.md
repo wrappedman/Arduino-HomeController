@@ -4,7 +4,7 @@ An offline-first ESP32-S3 smart-home controller and locally hosted web dashboard
 
 ## راهنمای فارسیِ تصویری
 
-راهنمای قدم‌به‌قدم با **فونت وزیرمتنِ آفلاین** و تصویرهای واقعیِ ثبت‌شده از همین رابط در [`data/guide-fa.html`](data/guide-fa.html) قرار دارد. پس از اجرای دمو یا نصب فایل‌سیستم، آن را از مسیر **`/guide-fa.html`** باز کنید یا از لینک «راهنمای فارسی» در نوار کناری استفاده کنید. تصویرها از اجرای مرورگری برنامه (حالت شبیه‌سازی) گرفته شده‌اند؛ عکس از سخت‌افزار واقعی نیستند.
+برای شروع **از رایانه‌ای که هیچ ابزار توسعه‌ای ندارد**، [راهنمای کامل نصب از صفر (فارسی)](docs/install-fa.md) را دنبال کنید؛ نصب Python/PlatformIO، گرفتن پوشهٔ درست، پیدا کردن پورت، آپلود هر دو تصویر و عیب‌یابی را توضیح می‌دهد. راهنمای راه‌اندازی همراه با **فونت وزیرمتنِ آفلاین** و تصویرهای رابط در [`data/guide-fa.html`](data/guide-fa.html) است. پس از اجرای دمو یا نصب فایل‌سیستم، آن را از مسیر **`/guide-fa.html`** باز کنید یا از لینک «راهنمای فارسی» در نوار کناری استفاده کنید. تصویرها از اجرای مرورگری برنامه (حالت شبیه‌سازی) گرفته شده‌اند؛ عکس از سخت‌افزار واقعی نیستند.
 
 ## Try the interactive demo
 
@@ -21,13 +21,17 @@ When `/api/bootstrap` is absent the UI enters **SIMULATED DEMO** mode. It uses l
 - **Framework:** Arduino via PlatformIO, `platformio.ini` contains the board and dual-OTA partition layout.
 - **Libraries:** ArduinoJson 6 and WebSocketsServer. Built-in LittleFS, SD, Preferences, Update and Wire.
 
+The commands below are **only a quick reference for people who have already installed PlatformIO**. If `pio` is unknown, start with the [beginner installation guide](docs/install-fa.md). Run these commands from the directory containing `platformio.ini` and substitute your own serial port:
+
 ```sh
-python3 -m pip install platformio     # or use an isolated Python venv
-pio run
-pio run -t upload
-pio run -t uploadfs  # REQUIRED on first install: uploads local web assets to LittleFS
-pio device monitor
+pio run -e esp32-s3-devkitc-1-n16r8                       # compile, does not flash
+pio run -e esp32-s3-devkitc-1-n16r8 -t upload --upload-port /dev/ttyUSB0
+pio run -e esp32-s3-devkitc-1-n16r8 -t buildfs            # package data/ into LittleFS
+pio run -e esp32-s3-devkitc-1-n16r8 -t uploadfs --upload-port /dev/ttyUSB0  # FIRST INSTALL
+pio device monitor -p /dev/ttyUSB0 -b 115200
 ```
+
+PlatformIO reads the selected environment from `platformio.ini`: the firmware comes from `src/`, the custom board profile from `boards/`, the Flash layout from `partitions/`, and **all embedded web assets (including the guide) from `data/`**. `upload` flashes program/boot images; `uploadfs` writes the distinct LittleFS partition. Never assume `/dev/ttyUSB0` is your port; see the beginner guide for Windows, macOS and Linux instructions.
 
 **Warning:** `uploadfs` rewrites the LittleFS partition and can erase an existing configuration. Export a backup before uploading new web assets on a provisioned controller; ordinary firmware OTA should not overwrite that partition. Firmware will not silently format a failed LittleFS mount.
 

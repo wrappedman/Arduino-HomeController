@@ -27,6 +27,20 @@ class GuideAssets(unittest.TestCase):
             if ref.endswith('.jpg'):
                 self.assertEqual(path.read_bytes()[:3], b'\xff\xd8\xff', ref)
 
+    def test_beginner_installation_tracks_actual_project_layout(self):
+        guide = (ROOT/'data/guide-fa.html').read_text(encoding='utf-8')
+        offline = (ROOT/'docs/install-fa.md').read_text(encoding='utf-8')
+        api = (ROOT/'src/Api.cpp').read_text()
+        ini = (ROOT/'platformio.ini').read_text()
+        for value in ('platformio.ini', 'src/', 'data/', 'buildfs', 'uploadfs',
+                      'device list', '--upload-port', 'COM5', 'venv'):
+            self.assertIn(value, guide)
+            self.assertIn(value, offline)
+        self.assertIn('esp32-s3-devkitc-1-n16r8', ini)
+        self.assertIn('/guide/upload-flow.svg', guide)
+        self.assertIn('upload-flow.svg', api)
+        self.assertIn('/guide/upload-flow.svg', offline)
+
     def test_vazirmatn_is_bundled(self):
         css = (ROOT / 'data/guide-fa.css').read_text(encoding='utf-8')
         self.assertIn('font-family:Vazirmatn', css)
