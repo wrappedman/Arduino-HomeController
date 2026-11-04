@@ -1,6 +1,10 @@
 # SHAP — Smart Home Automation Platform
 
-An offline-first ESP32-S3 smart-home controller and locally hosted web dashboard. **Current status: engineering preview, not a certified or production-ready mains controller.** The frontend has a clearly labelled interactive simulation; firmware implements a smaller, real GPIO-backed subset. Do not connect mains loads without professionally designed isolation and independent protection.
+An offline-first ESP32-S3 smart-home controller and locally hosted web dashboard. **Current status: hardware-unvalidated firmware candidate, not a certified or production-ready mains controller.** The frontend has a clearly labelled interactive simulation; firmware implements a smaller, real GPIO-backed subset. Do not connect mains loads without professionally designed isolation and independent protection.
+
+## راهنمای فارسیِ تصویری
+
+راهنمای قدم‌به‌قدم با **فونت وزیرمتنِ آفلاین** و تصویرهای واقعیِ ثبت‌شده از همین رابط در [`data/guide-fa.html`](data/guide-fa.html) قرار دارد. پس از اجرای دمو یا نصب فایل‌سیستم، آن را از مسیر **`/guide-fa.html`** باز کنید یا از لینک «راهنمای فارسی» در نوار کناری استفاده کنید. تصویرها از اجرای مرورگری برنامه (حالت شبیه‌سازی) گرفته شده‌اند؛ عکس از سخت‌افزار واقعی نیستند.
 
 ## Try the interactive demo
 
@@ -9,7 +13,7 @@ python3 -m http.server 4173 --bind 0.0.0.0 --directory data
 # visit http://localhost:4173
 ```
 
-When `/api/bootstrap` is absent the UI enters **SIMULATED DEMO** mode. It uses localStorage and does not talk to hardware. Explore all ten navigation views, toggle simulated relays, adjust simulated sensor readings, create/edit/delete devices, rules, scenes and schedules, drag/resize dashboard widgets, undo/redo, publish layouts, download/restore a demo backup, and preview the five-step setup wizard. No external fonts, scripts, charts or CDNs are loaded. Use the theme button for dark mode. Demo state can be reset by clearing this site's localStorage (`shap_demo_v2`).
+When `/api/bootstrap` is absent the UI enters **SIMULATED DEMO** mode. It uses localStorage and does not talk to hardware. Explore all ten navigation views, toggle simulated relays, adjust simulated sensor readings, create/edit/delete devices, rules, scenes and schedules, drag/resize dashboard widgets, undo/redo, publish layouts that actually render on Overview, download/restore a demo backup, and preview the five-step setup wizard. No external fonts, scripts, charts or CDNs are loaded. Use the theme button for dark mode. Demo state can be reset by clearing this site's localStorage (`shap_demo_v2`).
 
 ## Target and build
 
@@ -38,12 +42,16 @@ Connect to the unique `SmartHome-Setup-XXXX` access point printed in the serial 
 | Security | PBKDF2-HMAC-SHA256 (100k iterations, random salt), administrator session in HttpOnly SameSite cookie, 8h idle expiry, CSRF token, Origin check, login throttle, password rotation |
 | Device control | Max 24 devices: active-high/low relay, digital input, ADC1 analog input with scale/offset, virtual control; firmware GPIO allowlist, duplicate-pin check, optional output interlock and maximum ON timer |
 | Automation | Max 24 event-triggered value rules with optional condition and bounded delay; max 12 scenes; max 24 weekly schedules; 16-slot bounded action queue; 1-second per-rule cooldown |
-| Dashboard | Max 48 logical-grid widgets, compatibility check on mapping, config persisted in LittleFS; drag/drop, inspector, resize, undo/redo and publish in UI |
+| Dashboard | Max 48 logical-grid widgets, compatibility check on mapping, config persisted in LittleFS; drag/drop, inspector, resize, undo/redo, overlap-aware layout, publish to real Overview controls/charts/labels |
 | Monitoring | Live readings via authenticated broadcast-only WebSocket (port 81); optional SD historical CSV, 256 KiB rotation per sensor, 128-sample RAM fallback; RTC DS3231 or manual browser clock sync |
 | Maintenance | Authenticated status/diagnostics, board map, JSON backup/restore (excludes Wi-Fi/admin credentials), experimental browser-upload OTA with SHA-256 integrity check |
 
 ## Not implemented / not validated
 
-The PRD describes a **full production system**; this preview does **not** meet its final acceptance criteria. Not yet implemented: static IP configuration, DHT/SHT31, I2C sensor drivers, PWM/RGB/servo/motor drivers, full visual pinout matching a specific board revision, drag-resize handles/touch drag, independent mobile layouts, multiple dashboards, rich historical range queries/CSV export, persistent event archive, configurable sensor threshold alerts, NTP, HTTPS, firmware signatures/secure boot, role management, robust SD archival policies, multi-user connection/load tests, brownout/power-loss qualification and hardware/EMC/electrical certification. Firmware build and physical relay/RTC/SD testing require the actual board and toolchains. **Do not treat this preview as safe for doors, heaters, pumps, locks or other critical loads.**
+The PRD describes a **full production system**; this preview does **not** meet its final acceptance criteria. Not yet implemented: static IP configuration, DHT/SHT31, I2C sensor drivers, PWM/RGB/servo/motor drivers, full visual pinout matching a specific board revision, drag-resize handles/touch drag, independent mobile layouts, multiple dashboards, rich historical range queries/CSV export, persistent event archive, configurable sensor threshold alerts, NTP, HTTPS, firmware signatures/secure boot, role management, robust SD archival policies, multi-user connection/load tests, brownout/power-loss qualification and hardware/EMC/electrical certification. A GitHub Actions build and browser tests are configured; inspect their result before flashing. Physical relay/RTC/SD tests require the actual board and a safe low-voltage fixture. **Do not treat this preview as safe for doors, heaters, pumps, locks or other critical loads.**
 
 See [architecture](docs/architecture.md), [API](docs/api.md), [hardware](docs/hardware.md), [security](docs/security.md), and [tests/status](docs/testing.md).
+
+## Build validation and illustrated browser test
+
+`npm ci && npm test` runs DOM regression tests; `python3 -m unittest discover -s test -p "test_*.py"` checks assets/partitions. `scripts/capture-guide.cjs` opens the actual browser UI, exercises registration/publish/reload/device command and produces the screenshots used by the Persian guide. To regenerate them set `CHROMIUM_PATH` to a locally installed Chromium, serve `data/`, then run `npm run screenshots`. GitHub Actions attempts a firmware build (`pio run`) and LittleFS image (`pio run -t buildfs`); a green compile is still **not** a hardware safety certificate.

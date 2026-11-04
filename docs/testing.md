@@ -11,7 +11,7 @@ pio run                    # requires PlatformIO package registry/toolchain acce
 pio run -t uploadfs         # check web asset packaging
 ```
 
-`test/test_layout.py` checks the 16 MB OTA partition bounds, local asset sizes and reserved pin conventions. `test/ui-smoke.cjs` uses jsdom to exercise all UI navigation screens, designer widget addition/save, simulated device command and simulated device registration. It does **not** exercise a real controller, a browser layout engine, firmware compilation or electrical outputs.
+`test/test_guide.py` verifies local fonts and all referenced screenshots. `scripts/capture-guide.cjs` runs Chromium against the real frontend to verify publish → visible widget → reload persistence → mapped control, and generates the guide screenshots. `test/test_layout.py` checks the 16 MB OTA partition bounds, local asset sizes and reserved pin conventions. `test/ui-smoke.cjs` uses jsdom to exercise all UI navigation screens, designer widget addition/save, simulated device command and simulated device registration. It does **not** exercise a real controller, a browser layout engine, firmware compilation or electrical outputs.
 
 ## Hardware acceptance checklist (not yet performed)
 
@@ -30,7 +30,7 @@ pio run -t uploadfs         # check web asset packaging
 |---|---|
 | JavaScript syntax, jsdom smoke, partition/pin static checks | Passed locally |
 | Offline UI assets | No external runtime dependencies |
-| PlatformIO compile | **Not verified in this sandbox:** PlatformIO's package registry could not be reached (`HTTPClientError`) |
+| PlatformIO compile | Local sandbox package registry inaccessible (`HTTPClientError`); GitHub Actions build job is the required compile checkpoint. See the latest run before flashing. |
 | Board, wiring, relay, RTC, SD, OTA and reliability tests | Not run: no physical ESP32-S3 fixture in the sandbox |
 
 The PRD's final acceptance criteria cannot be claimed until the compile, hardware, security and power-loss checks above are completed.

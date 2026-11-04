@@ -75,6 +75,13 @@ fs.mkdirSync(output, { recursive: true });
     await authPage.screenshot({ path: path.join(output, '04-login.jpg'), type: 'jpeg', quality: 83 });
     await authPage.close();
     console.log('Captured 04-login');
+    const guide = await browser.newPage();
+    await guide.goto(base + '/guide-fa.html');
+    await guide.evaluate(() => document.fonts.ready);
+    await guide.locator('img').evaluateAll(images => images.forEach(image => { image.loading = 'eager'; }));
+    await guide.waitForFunction(() => [...document.querySelectorAll('img')].every(image => image.complete && image.naturalWidth > 0), null, {timeout:10000});
+    assert.ok(await guide.evaluate(() => document.fonts.check('16px Vazirmatn')), 'Vazirmatn must be loaded locally');
+    await guide.close();
     assert.deepEqual(errors, []);
     console.log('Browser interaction test passed: registration, publish, reload persistence, mapped command.');
   } finally { await browser.close(); }
