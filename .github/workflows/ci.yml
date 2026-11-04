@@ -32,7 +32,7 @@ jobs:
           arduino-cli lib install 'WebSockets@2.6.1'
       - name: Compile the exact Arduino IDE sketch
         run: |
-          if ! arduino-cli compile --fqbn 'esp32:esp32:esp32s3:FlashSize=16M,FlashMode=qio,PSRAM=opi,CDCOnBoot=default' --build-path "$RUNNER_TEMP/shap-arduino-build" arduino/SHAP > arduino-build.log 2>&1; then
+          if ! arduino-cli compile --fqbn 'esp32:esp32:esp32s3:FlashSize=16M,FlashMode=qio,PSRAM=opi,CDCOnBoot=default,PartitionScheme=app3M_fat9M_16MB' --build-path "$RUNNER_TEMP/shap-arduino-build" arduino/SHAP > arduino-build.log 2>&1; then
             tail -n 60 arduino-build.log
             python3 - <<'PYLOG'
           from pathlib import Path
