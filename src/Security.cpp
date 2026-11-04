@@ -54,10 +54,10 @@ bool sameSiteRequest() {
 static bool throttled() {
   if (failedCount < 5) return false;
   if (millis() - failedAt > 60000) return false;
-  return throttleIp == web.client();
+  return throttleIp == web.client().remoteIP();
 }
 static void registerFailure() {
-  IPAddress ip = web.client();
+  IPAddress ip = web.client().remoteIP();
   if (millis() - failedAt > 60000 || !(ip == throttleIp)) { throttleIp = ip; failedCount = 0; }
   failedCount++; failedAt = millis();
 }
