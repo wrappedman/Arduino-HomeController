@@ -32,10 +32,22 @@ jobs:
           arduino-cli lib install 'WebSockets@2.6.1'
       - name: Compile the exact Arduino IDE sketch
         run: |
-          arduino-cli compile --fqbn 'esp32:esp32:esp32s3:FlashSize=16M,FlashMode=qio,PSRAM=opi,CDCOnBoot=default' --build-path "$RUNNER_TEMP/shap-arduino-build" arduino/SHAP
-          test -s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin"
-          cmp arduino/SHAP/partitions.csv "$RUNNER_TEMP/shap-arduino-build/partitions.csv"
-          test "$(stat -c %s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin")" -lt 5242880
+          if ! arduino-cli compile --fqbn 'esp32:esp32:esp32s3:FlashSize=16M,FlashMode=qio,PSRAM=opi,CDCOnBoot=default' --build-path "$RUNNER_TEMP/shap-arduino-build" arduino/SHAP > arduino-build.log 2>&1; then
+            tail -n 60 arduino-build.log
+            python3 - <<'PYLOG'
+          from pathlib import Path
+          import re
+          lines=Path('arduino-build.log').read_text(errors='replace').splitlines()
+          issues=[line for line in lines if re.search(r'error:|Error:|fatal error|FAILED|undefined reference|not found',line,re.I)]
+          text='\n'.join((issues[-20:]+['--- last lines ---']+lines[-15:]))[-3800:]
+          print('::error title=Arduino IDE sketch compile failed::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          PYLOG
+            exit 1
+          fi
+          tail -n 15 arduino-build.log
+          test -s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin" || { echo '::error::Arduino firmware binary missing'; exit 1; }
+          cmp arduino/SHAP/partitions.csv "$RUNNER_TEMP/shap-arduino-build/partitions.csv" || { echo '::error::Custom partitions.csv not used'; exit 1; }
+          test "$(stat -c %s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin")" -lt 5242880 || { echo '::error::Arduino firmware exceeds 5MB app partition'; exit 1; }
   firmware:
     runs-on: ubuntu-latest
     steps:
