@@ -8,7 +8,12 @@ static bool socketAuth[16]={};
 static String ticket; static unsigned long ticketAt=0;
 static bool updateOk=false, hashStarted=false; static String updateExpected;
 static mbedtls_sha256_context updateHash;
-static bool sameOrigin() { String o=web.header("Origin"); return o.isEmpty() || o=="http://"+web.hostHeader(); }
+// Roll back to a snapshot. JsonDocument::set() resets the pool before copying, so
+// this also reclaims the slots leaked by the aborted edit. If even that fails the
+// last configuration persisted in flash is reloaded.
+static bool restoreConfig(DynamicJsonDocument& previous) {
+  return config.set(previous) || loadConfig();
+}
 void jsonResponse(int code, JsonVariantConst value) {
   String out; serializeJson(value,out); web.sendHeader("Cache-Control","no-store"); web.send(code,"application/json",out);
 }
@@ -119,21 +124,26 @@ static void handleCollection(const String& path) {
       if (existing.isNull()) { errorResponse(404,"not_found","Record not found"); return; }
     }
     String issue; if (!validateRecord(key,body.as<JsonVariantConst>(),rest,issue)) { errorResponse(422,"invalid_record",issue); return; }
+    // Reclaim pool slots leaked by previous edits before taking the snapshot, so the
+    // working set stays small and the save keeps succeeding.
+    compactConfig();
     DynamicJsonDocument previous(MAX_CONFIG_BYTES); previous.set(config);
-    if (key=="devices" && !existing.isNull() && existing["type"]=="relay") { int oldPin=existing["pin"] | -1; commandDevice(rest,"off","configuration"); if (oldPin>=0) pinMode(oldPin,INPUT); }
+    if (key=="devices" && !existing.isNull() && existing["type"]=="relay") { commandDevice(rest,"off","configuration"); releaseDevice(existing["pin"] | -1); }
     String id=rest.isEmpty() ? randomHex(6) : rest;
     if (existing.isNull()) existing=arr.createNestedObject();
     existing.set(body.as<JsonVariantConst>()); existing["id"]=id;
-    if (key=="devices") { existing["value"]=0; initHardware(); applyOutputs(); }
-    if (!saveConfig()) { config.set(previous); if (key=="devices") { initHardware(); applyOutputs(); } errorResponse(507,"storage_full","Could not persist configuration"); return; }
+    // Only the edited device is re-armed: other outputs and every live reading,
+    // including virtual device values, are left untouched.
+    if (key=="devices") { existing["value"]=0; initDevice(existing); }
+    if (!saveConfig()) { restoreConfig(previous); if (key=="devices") { syncHardware(); applyOutputs(); } errorResponse(507,"storage_full","Could not persist configuration"); return; }
     jsonResponse(web.method()==HTTP_POST ? 201 : 200,existing); return;
   }
   if (web.method()==HTTP_DELETE && !rest.isEmpty()) {
     DynamicJsonDocument previous(MAX_CONFIG_BYTES); previous.set(config);
     for (size_t i=0;i<arr.size();i++) if (arr[i]["id"]==rest) {
-      if (key=="devices" && arr[i]["type"]=="relay") { int oldPin=arr[i]["pin"] | -1; commandDevice(rest,"off","configuration"); if (oldPin>=0) pinMode(oldPin,INPUT); }
-      arr.remove(i); if (key=="devices") initHardware();
-      if (!saveConfig()) { config.set(previous); if (key=="devices") { initHardware(); applyOutputs(); } errorResponse(507,"storage_full","Could not persist configuration"); return; }
+      if (key=="devices" && arr[i]["type"]=="relay") { commandDevice(rest,"off","configuration"); releaseDevice(arr[i]["pin"] | -1); }
+      arr.remove(i);
+      if (!saveConfig()) { restoreConfig(previous); if (key=="devices") { syncHardware(); applyOutputs(); } errorResponse(507,"storage_full","Could not persist configuration"); return; }
       web.send(200,"application/json","{\"ok\":true}"); return;
     }
     errorResponse(404,"not_found","Record not found"); return;
@@ -180,11 +190,12 @@ static void handleFallback() {
   web.send(404,"text/plain","Not found");
 }
 void initApi() {
-  const char* headers[]={"Cookie","Origin","X-CSRF-Token","X-Firmware-SHA256"}; web.collectHeaders(headers,4);
+  const char* headers[]={"Cookie","Origin","Sec-Fetch-Site","X-CSRF-Token","X-Firmware-SHA256"}; web.collectHeaders(headers,5);
   socket.begin(); socket.onEvent(onSocket);
   web.on("/api/bootstrap",HTTP_GET,[](){ DynamicJsonDocument d(256); d["setup"]=setupMode; d["version"]=VERSION; d["demo"]=false; d["warning"]="LAN HTTP is not encrypted"; jsonResponse(200,d.as<JsonVariantConst>()); });
   web.on("/api/setup",HTTP_POST,[](){
-    if (!setupMode || !sameOrigin()) { errorResponse(403,"forbidden","Setup unavailable"); return; }
+    if (!setupMode || !sameSiteRequest()) { errorResponse(403,"forbidden","Setup unavailable or cross-origin"); return; }
+    compactConfig();
     DynamicJsonDocument b(1024); if (!readJson(b,1024)) return;
     String ssid=b["ssid"] | "", pass=b["wifiPassword"] | "", user=b["username"] | "", password=b["password"] | "";
     if (ssid.length()<1 || ssid.length()>32 || pass.length()>64 || user.length()<3 || user.length()>32 || password.length()<10 || password.length()>128 || String(b["name"] | "My Smart Home").length()>48 || String(b["timezone"] | "UTC0").length()>64) { errorResponse(422,"invalid_setup","Check SSID, username and password lengths"); return; }
@@ -226,15 +237,16 @@ void initApi() {
     web.send(200,"application/json","{\"ok\":true,\"restarting\":true}"); restartAt=millis()+1500;
   });
   web.on("/api/network/status",HTTP_GET,[](){ if (!auth()) return; DynamicJsonDocument d(256); d["connected"]=WiFi.status()==WL_CONNECTED; d["ssid"]=WiFi.SSID(); d["ip"]=WiFi.localIP().toString(); jsonResponse(200,d.as<JsonVariantConst>()); });
-  web.on("/api/hardware/board",HTTP_GET,[](){ if (!auth()) return; DynamicJsonDocument d(2048); d["model"]=BOARD; JsonArray pins=d.createNestedArray("pins"); for (int pin=0;pin<=48;pin++) { JsonObject p=pins.createNestedObject(); p["gpio"]=pin; p["reserved"]=!((pin>=1 && pin<=18 && pin!=8 && pin!=9 && pin!=10 && pin!=11 && pin!=12 && pin!=13) || pin==21 || (pin>=38 && pin<=42) || pin==47); p["adc"]=pin>=1 && pin<=10 && pin!=8 && pin!=9 && pin!=10 && pin!=11 && pin!=12 && pin!=13; } jsonResponse(200,d.as<JsonVariantConst>()); });
+  web.on("/api/hardware/board",HTTP_GET,[](){ if (!auth()) return; DynamicJsonDocument d(2048); d["model"]=BOARD; JsonArray pins=d.createNestedArray("pins"); for (int pin=0;pin<=48;pin++) { JsonObject p=pins.createNestedObject(); p["gpio"]=pin; p["reserved"]=!((pin>=1 && pin<=18 && pin!=8 && pin!=9 && pin!=10 && pin!=11 && pin!=12 && pin!=13) || pin==21 || (pin>=38 && pin<=42) || pin==47); p["adc"]=pin>=1 && pin<=10 && pin!=8 && pin!=9 && pin!=10 && pin!=11 && pin!=12 && pin!=13; p["jtag"]=pin>=39 && pin<=42; } jsonResponse(200,d.as<JsonVariantConst>()); });
   web.on("/api/hardware/gpio",HTTP_GET,[](){ if (!auth()) return; DynamicJsonDocument d(1024); JsonArray pins=d.to<JsonArray>(); for (JsonObject o : config["devices"].as<JsonArray>()) if (o["type"]!="virtual") { JsonObject p=pins.createNestedObject(); p["gpio"]=o["pin"]; p["deviceId"]=o["id"]; p["name"]=o["name"]; } jsonResponse(200,d.as<JsonVariantConst>()); });
   web.on("/api/hardware/test",HTTP_POST,[](){ if (!auth(true)) return; DynamicJsonDocument b(256); if (!readJson(b,256)) return; String id=b["deviceId"] | "", cmd=b["command"] | ""; if (!commandDevice(id,cmd,"hardware test")) { errorResponse(422,"invalid_test","Test a registered controllable device only"); return; } web.send(200,"application/json","{\"ok\":true}"); });
   web.on("/api/dashboard",HTTP_GET,[](){ if (!auth()) return; jsonResponse(200,config["dashboard"].as<JsonVariantConst>()); });
   web.on("/api/dashboard",HTTP_PUT,[](){ if (!auth(true)) return; DynamicJsonDocument b(8192); if (!readJson(b,8192)) return; JsonArrayConst widgets=b["widgets"].as<JsonArrayConst>(); if (widgets.isNull() || widgets.size()>MAX_WIDGETS) { errorResponse(422,"invalid_dashboard","Maximum 48 widgets"); return; }
+    compactConfig();
     for (JsonObjectConst w : widgets) { String type=w["type"] | ""; String id=w["deviceId"] | ""; if ((type!="toggle" && type!="button" && type!="value" && type!="gauge" && type!="chart" && type!="label") || id.length()>24 || (w["x"] | -1)<0 || (w["x"] | 0)>11 || (w["y"] | -1)<0 || (w["w"] | 0)<1 || (w["w"] | 0)>12 || w["x"].as<int>()+w["w"].as<int>()>12 || (w["h"] | 0)<1 || (w["h"] | 0)>6) { errorResponse(422,"invalid_widget","Invalid grid layout or mapping"); return; }
       if (id.length()) { bool compatible=false; for (JsonObject d : config["devices"].as<JsonArray>()) if (d["id"]==id) { bool control=type=="toggle" || type=="button"; compatible=control ? (d["type"]=="relay" || d["type"]=="virtual") : (d["type"]=="analog" || d["type"]=="digital" || d["type"]=="virtual"); } if (!compatible) { errorResponse(422,"incompatible_mapping","Widget and device are incompatible"); return; } }
     }
-    DynamicJsonDocument previous(MAX_CONFIG_BYTES); previous.set(config); config["dashboard"].set(b.as<JsonVariantConst>()); if (!saveConfig()) { config.set(previous); errorResponse(507,"storage_full","Could not persist dashboard"); return; } jsonResponse(200,config["dashboard"].as<JsonVariantConst>());
+    DynamicJsonDocument previous(MAX_CONFIG_BYTES); previous.set(config); config["dashboard"].set(b.as<JsonVariantConst>()); if (!saveConfig()) { restoreConfig(previous); errorResponse(507,"storage_full","Could not persist dashboard"); return; } jsonResponse(200,config["dashboard"].as<JsonVariantConst>());
   });
   web.on("/api/events",HTTP_GET,[](){ if (!auth()) return; jsonResponse(200,events.as<JsonVariantConst>()); });
   web.on("/api/sensors",HTTP_GET,[](){ if (!auth()) return; DynamicJsonDocument d(4096); JsonArray a=d.to<JsonArray>(); for (JsonObject o : config["devices"].as<JsonArray>()) if (o["type"]=="analog" || o["type"]=="digital") a.add(o); jsonResponse(200,d.as<JsonVariantConst>()); });
@@ -244,19 +256,20 @@ void initApi() {
   web.on("/api/storage/restore",HTTP_POST,[](){ if (!auth(true)) return; DynamicJsonDocument b(MAX_CONFIG_BYTES); if (!readJson(b,MAX_CONFIG_BYTES-512)) return;
     if (b["schema"]!=1 || b["board"]!=BOARD || b["backupVersion"]!=1 || !b["devices"].is<JsonArray>() || !b["dashboard"]["widgets"].is<JsonArray>()) { errorResponse(422,"incompatible_backup","Invalid version or board"); return; }
     if (!b["automations"].is<JsonArray>() || !b["scenes"].is<JsonArray>() || !b["schedules"].is<JsonArray>() || b["devices"].as<JsonArray>().size()>MAX_DEVICES || b["automations"].as<JsonArray>().size()>MAX_RULES || b["scenes"].as<JsonArray>().size()>MAX_SCENES || b["schedules"].as<JsonArray>().size()>MAX_SCHEDULES || b["dashboard"]["widgets"].as<JsonArray>().size()>MAX_WIDGETS) { errorResponse(422,"limit_reached","Backup exceeds limits"); return; }
+    compactConfig();
     DynamicJsonDocument old(MAX_CONFIG_BYTES); old.set(config); config.set(b); config.remove("backupVersion"); config.remove("exportedAt");
     String issue;
-    for (JsonObject o : config["devices"].as<JsonArray>()) if (!validIdentifier(o["id"] | "") || !validateDevice(o,o["id"] | "",issue)) { config.set(old); errorResponse(422,"invalid_device",issue.length()?issue:"Invalid device identifier"); return; }
-    for (const char* key : {"automations","scenes","schedules"}) for (JsonObject o : config[key].as<JsonArray>()) if (!validIdentifier(o["id"] | "") || !validateRecord(key,o,o["id"] | "",issue)) { config.set(old); errorResponse(422,"invalid_record",issue.length()?issue:"Invalid identifier"); return; }
+    for (JsonObject o : config["devices"].as<JsonArray>()) if (!validIdentifier(o["id"] | "") || !validateDevice(o,o["id"] | "",issue)) { restoreConfig(old); errorResponse(422,"invalid_device",issue.length()?issue:"Invalid device identifier"); return; }
+    for (const char* key : {"automations","scenes","schedules"}) for (JsonObject o : config[key].as<JsonArray>()) if (!validIdentifier(o["id"] | "") || !validateRecord(key,o,o["id"] | "",issue)) { restoreConfig(old); errorResponse(422,"invalid_record",issue.length()?issue:"Invalid identifier"); return; }
     for (JsonObject w : config["dashboard"]["widgets"].as<JsonArray>()) {
       String type=w["type"] | "", id=w["deviceId"] | "";
-      if (!validIdentifier(w["id"] | "") || (type!="toggle" && type!="button" && type!="value" && type!="gauge" && type!="chart" && type!="label") || (w["x"] | -1)<0 || (w["x"] | 0)>11 || (w["w"] | 0)<1 || (w["w"] | 0)>12 || (w["x"].as<int>()+w["w"].as<int>())>12 || (w["y"] | -1)<0 || (w["h"] | 0)<1 || (w["h"] | 0)>6) { config.set(old); errorResponse(422,"invalid_widget","Invalid dashboard layout"); return; }
+      if (!validIdentifier(w["id"] | "") || (type!="toggle" && type!="button" && type!="value" && type!="gauge" && type!="chart" && type!="label") || (w["x"] | -1)<0 || (w["x"] | 0)>11 || (w["w"] | 0)<1 || (w["w"] | 0)>12 || (w["x"].as<int>()+w["w"].as<int>())>12 || (w["y"] | -1)<0 || (w["h"] | 0)<1 || (w["h"] | 0)>6) { restoreConfig(old); errorResponse(422,"invalid_widget","Invalid dashboard layout"); return; }
       String target=deviceType(id);
-      if (id.length() && ((type=="toggle" || type=="button") ? (target!="relay" && target!="virtual") : (target!="analog" && target!="digital" && target!="virtual"))) { config.set(old); errorResponse(422,"incompatible_mapping","Widget mapping incompatible"); return; }
+      if (id.length() && ((type=="toggle" || type=="button") ? (target!="relay" && target!="virtual") : (target!="analog" && target!="digital" && target!="virtual"))) { restoreConfig(old); errorResponse(422,"incompatible_mapping","Widget mapping incompatible"); return; }
     }
     // Validate conflicts in the imported collection, not against only the existing registry.
-    JsonArray devices=config["devices"].as<JsonArray>(); for (size_t i=0;i<devices.size();i++) for (size_t j=i+1;j<devices.size();j++) if (devices[i]["id"]==devices[j]["id"] || (devices[i]["type"]!="virtual" && devices[j]["type"]!="virtual" && devices[i]["pin"]==devices[j]["pin"])) { config.set(old); errorResponse(422,"gpio_conflict","Duplicate GPIO in backup"); return; }
-    if (!saveConfig()) { config.set(old); errorResponse(507,"storage_full","Restore failed"); return; }
+    JsonArray devices=config["devices"].as<JsonArray>(); for (size_t i=0;i<devices.size();i++) for (size_t j=i+1;j<devices.size();j++) if (devices[i]["id"]==devices[j]["id"] || (devices[i]["type"]!="virtual" && devices[j]["type"]!="virtual" && devices[i]["pin"]==devices[j]["pin"])) { restoreConfig(old); errorResponse(422,"gpio_conflict","Duplicate GPIO in backup"); return; }
+    if (!saveConfig()) { restoreConfig(old); errorResponse(507,"storage_full","Restore failed"); return; }
     web.send(200,"application/json","{\"ok\":true,\"restarting\":true}"); restartAt=millis()+1500;
   });
   web.on("/api/firmware/version",HTTP_GET,[](){ if (!auth()) return; DynamicJsonDocument d(128); d["version"]=VERSION; d["signedFirmware"]=false; jsonResponse(200,d.as<JsonVariantConst>()); });

@@ -1,7 +1,7 @@
 name: SHAP build and tests
 on:
   push:
-    branches: [arena/8a6b6b7d-arduino-homecontroller]
+    branches: ['arena/**']
   pull_request:
   workflow_dispatch:
 permissions:

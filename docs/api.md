@@ -1,6 +1,6 @@
 # Local API reference (preview)
 
-Base URL: `http://<controller-ip>/api`. JSON for all normal request bodies and responses; errors are `{ "error": { "code": "...", "message": "..." } }`. HTTP 400/401/403/404/409/413/422/429/507 are used as applicable. No CORS is enabled. Other than `bootstrap`, `setup`, `auth/login` and `auth/session`, endpoints require an administrator cookie. Mutations also require `X-CSRF-Token` from `/auth/session` or login. On login the controller sets `shap_session` (HttpOnly; SameSite Strict; eight-hour expiry). Do not use this HTTP interface outside an isolated LAN.
+Base URL: `http://<controller-ip>/api`. JSON for all normal request bodies and responses; errors are `{ "error": { "code": "...", "message": "..." } }`. HTTP 400/401/403/404/409/413/422/429/507 are used as applicable. No CORS is enabled. Other than `bootstrap`, `setup`, `auth/login` and `auth/session`, endpoints require an administrator cookie. Mutations also require `X-CSRF-Token` from `/auth/session` or login and a same-site request (`Origin` matching the host, or `Sec-Fetch-Site` of `same-origin`/`same-site`/`none`). On login the controller sets `shap_session` (HttpOnly; SameSite Strict; eight-hour idle expiry, 24-hour absolute cap). Three concurrent sessions are supported. Failed logins are throttled per client IP (five per minute). Do not use this HTTP interface outside an isolated LAN.
 
 | Endpoint | Methods | Purpose |
 |---|---|---|

@@ -66,6 +66,37 @@ class ReleaseLayout(unittest.TestCase):
         self.assertIn('findEmbeddedAsset(path)',api)
         self.assertNotIn('LittleFS.open(path',api)
 
+    def test_config_pool_is_compacted_before_every_mutation(self):
+        """ArduinoJson 6 never returns slots when an object is replaced, so the
+        fixed 32 KB config document would fill up after a handful of edits and every
+        later saveConfig() would fail. Verified by simulation: 14 device edits at
+        maximum configuration, a single dashboard save with 48 widgets."""
+        storage = (ROOT/'src/Storage.cpp').read_text()
+        api = (ROOT/'src/Api.cpp').read_text()
+        self.assertIn('void compactConfig()', storage)
+        self.assertIn('config.garbageCollect()', storage)
+        # every edit path must reclaim first, and must fall back to a safe rollback
+        self.assertIn('compactConfig();', api)
+        self.assertIn('restoreConfig(', api)
+        self.assertNotIn('config.set(previous);', api)
+        self.assertNotIn('config.set(old);', api)
+        # saveConfig retries after compacting instead of failing permanently
+        save = storage[storage.index('bool saveConfig()'):]
+        self.assertIn('garbageCollect()', save)
+
+    def test_device_edits_do_not_reset_unrelated_outputs(self):
+        """Editing one device used to re-initialise every GPIO and zero every value,
+        which blanked virtual device readings and briefly floated every relay pin."""
+        api = (ROOT/'src/Api.cpp').read_text()
+        hardware = (ROOT/'src/Hardware.cpp').read_text()
+        self.assertIn('initDevice(existing)', api)
+        self.assertIn('void initDevice(', hardware)
+        self.assertIn('void releaseDevice(', hardware)
+        self.assertIn('void syncHardware(', hardware)
+        # initHardware() is the boot-time safe-state entry point only
+        edited = api[api.index('if (web.method()==HTTP_POST || web.method()==HTTP_PUT)'):]
+        self.assertNotIn('initHardware()', edited)
+
     def test_reserved_pins_covered_in_both_layers(self):
         firmware=(ROOT/'src/Hardware.cpp').read_text()
         frontend=(ROOT/'data/app.js').read_text()

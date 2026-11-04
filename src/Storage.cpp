@@ -65,8 +65,20 @@ bool loadConfig() {
   }
   ensureConfig(); return false;
 }
+static bool configWritable() {
+  return !config.isNull() && !config.overflowed() && measureJson(config) <= MAX_CONFIG_BYTES - 512;
+}
+// Editors replace whole JSON objects (PUT /api/<collection>/<id>, PUT /api/dashboard).
+// ArduinoJson 6 unlinks old members but keeps their slots allocated, so the fixed
+// capacity would be exhausted after a handful of edits and every later save would
+// fail until reboot. Rebuilding the document reclaims exactly that slack.
+void compactConfig() {
+  if (config.memoryUsage() > MAX_CONFIG_BYTES / 2) config.garbageCollect();
+}
 bool saveConfig() {
-  if (config.overflowed() || measureJson(config) > MAX_CONFIG_BYTES - 512) return false;
+  if (!configWritable()) {
+    if (!config.garbageCollect() || !configWritable()) return false;
+  }
   File f = LittleFS.open("/config.tmp", "w"); if (!f) return false;
   size_t expected = measureJson(config), written = serializeJson(config, f); f.flush(); f.close();
   if (written != expected) { LittleFS.remove("/config.tmp"); return false; }

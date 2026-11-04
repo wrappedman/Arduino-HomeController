@@ -4,7 +4,8 @@ const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const html=fs.readFileSync('data/index.html','utf8'), js=fs.readFileSync('data/app.js','utf8');
 let dashboard={name:'Home',published:false,widgets:[]}, value=0, writes=0, commands=0;
-const device={id:'fixture',name:'Fixture relay',type:'relay',pin:14,value:0,enabled:true};
+const device={id:'fixture',name:'Fixture relay',type:'relay',pin:14,value:0,enabled:false};
+const puts=[];
 const response=(data,status=200)=>({ok:status<400,status,json:async()=>JSON.parse(JSON.stringify(data))});
 const dom=new JSDOM(html,{url:'http://esp32.local/',runScripts:'dangerously',pretendToBeVisual:true,beforeParse(win){
   win.setInterval=()=>0;
@@ -16,6 +17,10 @@ const dom=new JSDOM(html,{url:'http://esp32.local/',runScripts:'dangerously',pre
     if(path==='/api/ws-ticket')return response({error:{message:'WS unavailable'}},503);
     if(path==='/api/system/status')return response({name:'Test',version:'0.1.0-preview',wifiConnected:true,deviceCount:1,ruleCount:0});
     if(path==='/api/devices'&&method==='GET')return response([{...device,value}]);
+    if(path==='/api/devices/fixture'&&method==='PUT'){
+      assert.equal(opts.headers['X-CSRF-Token'],'fixture-csrf');
+      puts.push(JSON.parse(opts.body));return response({ok:true});
+    }
     if(['/api/scenes','/api/schedules','/api/automations','/api/events'].includes(path))return response([]);
     if(path==='/api/dashboard'&&method==='GET')return response(dashboard);
     if(path==='/api/dashboard'&&method==='PUT'){
@@ -45,5 +50,13 @@ const click=selector=>{let element=dom.window.document.querySelector(selector);a
   click('.published-grid [data-command="fixture"]');await tick();
   assert.equal(commands,1);assert.equal(value,1);
   assert.deepEqual(dashboard.widgets.length,1);
-  console.log('Firmware-mode API client test passed: authenticated publish, mapping, CSRF and command.');
+  // Editing a disabled device must not silently re-enable it.
+  click('[data-nav="devices"]');
+  click('[data-action="edit:devices:fixture"]');
+  dom.window.document.querySelector('#modal-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  await tick();
+  assert.equal(puts.length,1);
+  assert.equal(puts[0].enabled,false);
+  assert.equal(puts[0].name,'Fixture relay');
+  console.log('Firmware-mode API client test passed: authenticated publish, mapping, CSRF, command and device enable state.');
 })().catch(error=>{console.error(error);process.exitCode=1}).finally(()=>dom.window.close());

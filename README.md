@@ -32,8 +32,9 @@ Connect to the unique `SmartHome-Setup-XXXX` access point printed in the serial 
 |---|---|
 | Boot/storage | Firmware-embedded offline UI; LittleFS config with version/board check, temp file and previous-file recovery; virgin-only filesystem initialization; small secrets in Preferences; safe OFF relay initialization |
 | Provisioning | Passworded per-device setup AP, five-step UI, Wi-Fi scan/configuration and administrator creation, controlled reconnect/recovery AP |
-| Security | PBKDF2-HMAC-SHA256 (100k iterations, random salt), administrator session in HttpOnly SameSite cookie, 8h idle expiry, CSRF token, Origin check, login throttle, password rotation |
-| Device control | Max 24 devices: active-high/low relay, digital input, ADC1 analog input with scale/offset, virtual control; firmware GPIO allowlist, duplicate-pin check, optional output interlock and maximum ON timer |
+| Security | PBKDF2-HMAC-SHA256 (100k iterations, random salt), administrator session in HttpOnly SameSite cookie, 8h idle / 24h absolute expiry, CSRF token, same-site (Origin / Sec-Fetch-Site) check, per-client login throttle, password rotation; up to three concurrent sessions |
+| Device control | Max 24 devices: active-high/low relay, digital input, ADC1 analog input with scale/offset, virtual control; firmware GPIO allowlist, duplicate-pin check, optional output interlock and maximum ON timer; edits re-arm only the affected output |
+| Configuration storage | LittleFS JSON with recovery file, and a fixed 32 KB in-memory document that is compacted before every mutation so repeated edits and dashboard publishes keep saving |
 | Automation | Max 24 event-triggered value rules with optional condition and bounded delay; max 12 scenes; max 24 weekly schedules; 16-slot bounded action queue; 1-second per-rule cooldown |
 | Dashboard | Max 48 logical-grid widgets, compatibility check on mapping, config persisted in LittleFS; drag/drop, inspector, resize, undo/redo, overlap-aware layout, publish to real Overview controls/charts/labels |
 | Monitoring | Live readings via authenticated broadcast-only WebSocket (port 81); optional SD historical CSV, 256 KiB rotation per sensor, 128-sample RAM fallback; RTC DS3231 or manual browser clock sync |
