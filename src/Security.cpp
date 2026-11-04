@@ -2,8 +2,16 @@
 #include <mbedtls/md.h>
 #include <mbedtls/pkcs5.h>
 namespace shap {
-struct Session { String token, csrf; unsigned long expires; };
+// Sessions expire after 8 h of inactivity and never outlive this absolute cap,
+// otherwise a dashboard that polls forever would keep a session alive indefinitely.
+constexpr unsigned long SESSION_IDLE_MS = 28800000UL;
+constexpr unsigned long SESSION_MAX_MS = 86400000UL;
+struct Session { String token, csrf; unsigned long expires, issued; };
 static Session sessions[3];
+static uint8_t nextSession = 0;
+// Login throttling is tracked per client so one attacker cannot lock out the
+// administrator, and a legitimate client is never blocked by somebody else.
+static IPAddress throttleIp;
 static unsigned long failedAt = 0;
 static unsigned int failedCount = 0;
 String randomHex(size_t bytes) {
@@ -28,7 +36,31 @@ static bool constantEqual(const String& a, const String& b) {
   if (a.length() != b.length()) return false;
   uint8_t diff = 0; for (size_t i=0; i<a.length(); i++) diff |= a[i] ^ b[i]; return diff == 0;
 }
-void invalidateSessions() { for (auto& s : sessions) s = {}; }
+void invalidateSessions() { for (auto& s : sessions) s = {}; nextSession = 0; }
+static bool sessionLive(Session& s) {
+  return s.token.length() && (long)(s.expires - millis()) > 0 && millis() - s.issued < SESSION_MAX_MS;
+}
+// Accept a mutation only when it demonstrably comes from the controller's own page.
+// Browsers send Origin on same-origin POSTs; Sec-Fetch-Site is the newer signal and
+// also catches DNS-rebinding when a client omits Origin. A client that sends
+// neither header is assumed to be a legacy same-origin form and is allowed.
+bool sameSiteRequest() {
+  String origin = web.header("Origin");
+  if (origin.length()) return origin == "http://" + web.hostHeader();
+  String site = web.header("Sec-Fetch-Site");
+  if (site.length()) return site == "same-origin" || site == "same-site" || site == "none";
+  return true;
+}
+static bool throttled() {
+  if (failedCount < 5) return false;
+  if (millis() - failedAt > 60000) return false;
+  return throttleIp == web.client().remoteIP();
+}
+static void registerFailure() {
+  IPAddress ip = web.client().remoteIP();
+  if (millis() - failedAt > 60000 || !(ip == throttleIp)) { throttleIp = ip; failedCount = 0; }
+  failedCount++; failedAt = millis();
+}
 static String cookieToken() {
   String cookie = web.header("Cookie"); int p = cookie.indexOf("shap_session=");
   if (p < 0) return ""; p += 13; int end = cookie.indexOf(';', p);
@@ -37,13 +69,12 @@ static String cookieToken() {
 bool authorized(bool mutation) {
   String token = cookieToken();
   for (auto& s : sessions) {
-    if (s.token.length() && constantEqual(token, s.token) && (long)(s.expires - millis()) > 0) {
+    if (constantEqual(token, s.token) && sessionLive(s)) {
       if (mutation) {
         if (!constantEqual(web.header("X-CSRF-Token"), s.csrf)) return false;
-        String origin = web.header("Origin");
-        if (origin.length() && origin != "http://" + web.hostHeader()) return false;
+        if (!sameSiteRequest()) return false;
       }
-      s.expires = millis() + 28800000UL; return true;
+      s.expires = millis() + SESSION_IDLE_MS; return true;
     }
   }
   return false;
@@ -51,16 +82,19 @@ bool authorized(bool mutation) {
 void initSecurity() {
   web.on("/api/auth/session", HTTP_GET, []() {
     DynamicJsonDocument d(256); bool ok = authorized(); d["authenticated"] = ok;
-    if (ok) for (auto& s : sessions) if (s.token == cookieToken()) d["csrf"] = s.csrf;
+    if (ok) { String token = cookieToken(); for (auto& s : sessions) if (sessionLive(s) && constantEqual(token, s.token)) d["csrf"] = s.csrf; }
     jsonResponse(200, d.as<JsonVariantConst>());
   });
   web.on("/api/auth/login", HTTP_POST, []() {
     if (setupMode) { errorResponse(403,"setup_required","Finish setup first"); return; }
-    if (failedCount >= 5 && millis() - failedAt < 60000) { errorResponse(429,"rate_limited","Try again in one minute"); return; }
+    if (throttled()) { errorResponse(429,"rate_limited","Try again in one minute"); return; }
     DynamicJsonDocument body(512); if (!readJson(body, 512)) return;
     String hash; bool ok = body["username"].as<String>() == prefs.getString("admin", "") && digest(body["password"].as<String>(), prefs.getString("salt", ""), hash) && constantEqual(hash, prefs.getString("hash", ""));
-    if (!ok) { failedCount = millis() - failedAt > 60000 ? 1 : failedCount + 1; failedAt = millis(); errorResponse(401,"invalid_credentials","Invalid credentials"); return; }
-    failedCount = 0; Session& s = sessions[0]; s.token = randomHex(32); s.csrf = randomHex(16); s.expires = millis() + 28800000UL;
+    if (!ok) { registerFailure(); errorResponse(401,"invalid_credentials","Invalid credentials"); return; }
+    failedCount = 0;
+    // Round-robin the three slots so several browsers can stay signed in at once.
+    Session& s = sessions[nextSession]; nextSession = (nextSession + 1) % 3;
+    s.token = randomHex(32); s.csrf = randomHex(16); s.issued = millis(); s.expires = millis() + SESSION_IDLE_MS;
     web.sendHeader("Set-Cookie", "shap_session=" + s.token + "; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800");
     DynamicJsonDocument d(128); d["csrf"] = s.csrf; d["authenticated"] = true; jsonResponse(200, d.as<JsonVariantConst>());
   });

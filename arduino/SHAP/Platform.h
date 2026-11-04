@@ -32,7 +32,13 @@ bool readJson(DynamicJsonDocument& out, size_t limit = 8192);
 bool loadConfig();
 bool saveConfig();
 void ensureConfig();
+// ArduinoJson's pool never returns slots when an object is cleared or replaced,
+// so repeated edits exhaust the fixed-size config document. Rebuild it.
+void compactConfig();
 void initHardware();
+void initDevice(JsonObject device);
+void releaseDevice(int pin);
+void syncHardware();
 void tickHardware();
 void applyOutputs();
 bool validateDevice(JsonVariantConst device, const String& ignoreId, String& error);
@@ -50,6 +56,7 @@ void tickApi();
 void initSecurity();
 bool setAdmin(const String& name, const String& password);
 bool authorized(bool mutation = false);
+bool sameSiteRequest();
 void invalidateSessions();
 }
 namespace shap {

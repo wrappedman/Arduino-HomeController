@@ -36,20 +36,30 @@ void recordEvent(const String& message, const String& category) {
   e["at"] = clockValid ? (long)time(nullptr) : 0; e["uptime"] = millis()/1000;
   String payload; DynamicJsonDocument d(320); d["type"]="event"; d["data"]=e; serializeJson(d,payload); broadcastMessage(payload);
 }
+// Drives one device's GPIO into its safe idle state. Relays latch their OFF level
+// before the output driver is enabled so the pin never energises a load at boot.
+static void configurePin(JsonObject d) {
+  String type=d["type"] | ""; int pin=d["pin"] | -1;
+  if (type=="relay" && validPin(pin,type)) {
+    pinMode(pin, INPUT);
+    digitalWrite(pin, (d["activeLow"] | false) ? HIGH : LOW);
+    pinMode(pin, OUTPUT);
+  } else if (type=="digital" && validPin(pin,type)) {
+    pinMode(pin, (d["pullup"] | false) ? INPUT_PULLUP : INPUT);
+  } else if (type=="analog" && validPin(pin,type)) { pinMode(pin, INPUT); }
+}
+void initDevice(JsonObject d) { configurePin(d); }
+void releaseDevice(int pin) { if (validPin(pin, "relay")) pinMode(pin, INPUT); }
+// Re-apply pin modes after a configuration rollback without discarding live values.
+void syncHardware() {
+  for (JsonObject d : config["devices"].as<JsonArray>()) configurePin(d);
+}
 void initHardware() {
   if (!events.is<JsonArray>()) events.to<JsonArray>();
   int index=0;
   for (JsonObject d : config["devices"].as<JsonArray>()) {
-    String type=d["type"] | ""; int pin=d["pin"] | -1;
     d["value"] = 0;
-    if (type=="relay" && validPin(pin,type)) {
-      // Configure latch before enabling the output driver. Every reboot defaults OFF.
-      pinMode(pin, INPUT);
-      digitalWrite(pin, (d["activeLow"] | false) ? HIGH : LOW);
-      pinMode(pin, OUTPUT);
-    } else if (type=="digital" && validPin(pin,type)) {
-      pinMode(pin, (d["pullup"] | false) ? INPUT_PULLUP : INPUT);
-    } else if (type=="analog" && validPin(pin,type)) { pinMode(pin, INPUT); }
+    configurePin(d);
     if (index < MAX_DEVICES) onSince[index++] = 0;
   }
   recordEvent("GPIO initialized; relay outputs set to safe OFF state");
@@ -61,7 +71,12 @@ void applyOutputs() {
     if (type=="relay" && validPin(pin,type)) {
       bool on=d["value"].as<float>()>0;
       digitalWrite(pin, on == (d["activeLow"] | false) ? LOW : HIGH);
-      if (i < MAX_DEVICES) onSince[i] = on ? millis() : 0;
+      if (i < MAX_DEVICES) {
+        // Re-asserting an output keeps its original switch-on time so the
+        // maximum-ON safety timer is never restarted by an unrelated save.
+        if (!on) onSince[i] = 0;
+        else if (!onSince[i]) onSince[i] = millis();
+      }
     }
     i++;
   }
@@ -86,7 +101,7 @@ bool commandDevice(const String& id, const String& command, const String& source
   d["value"]=next; int pin=d["pin"] | -1;
   if (type=="relay" && validPin(pin,type)) {
     digitalWrite(pin, next == (d["activeLow"] | false) ? LOW : HIGH);
-    int idx=0; for (JsonObject it : config["devices"].as<JsonArray>()) { if (it["id"]==id) { if (idx<MAX_DEVICES) onSince[idx]=next ? millis() : 0; break; } idx++; }
+    int idx=0; for (JsonObject it : config["devices"].as<JsonArray>()) { if (it["id"]==id) { if (idx<MAX_DEVICES) { if (next!=old) onSince[idx]=next ? millis() : 0; else if (next && !onSince[idx]) onSince[idx]=millis(); } break; } idx++; }
   }
   if (next!=old) { recordEvent(d["name"].as<String>() + (next?" turned on":" turned off") + " by " + source,"device"); broadcastState(id,next); deviceChanged(id,next); }
   return true;
@@ -99,9 +114,17 @@ void tickHardware() {
     String type=d["type"] | ""; int pin=d["pin"] | -1;
     if (type=="relay" && idx<MAX_DEVICES && d["value"].as<float>()>0 && (d["maxOnSeconds"] | 0)>0 && millis()-onSince[idx] > (uint32_t)d["maxOnSeconds"].as<int>()*1000UL) commandDevice(d["id"].as<String>(),"off","safety timer");
     if ((type=="digital" || type=="analog") && validPin(pin,type)) {
-      float previous=d["value"] | 0.0f; float value=type=="analog" ? analogRead(pin)/4095.0f*100.0f : digitalRead(pin);
-      if (type=="analog") value=value*(d["scale"] | 1.0f)+(d["offset"] | 0.0f);
-      if (d["invert"] | false) value=type=="digital" ? 1-value : 100-value;
+      float previous=d["value"] | 0.0f, value;
+      if (type=="analog") {
+        // Invert the raw 0–100 reading, then calibrate: invert is a sensor
+        // characteristic, not a property of the scaled engineering value.
+        value=analogRead(pin)/4095.0f*100.0f;
+        if (d["invert"] | false) value=100.0f-value;
+        value=value*(d["scale"] | 1.0f)+(d["offset"] | 0.0f);
+      } else {
+        value=digitalRead(pin);
+        if (d["invert"] | false) value=1-value;
+      }
       d["value"]=value; d["lastSeen"] = (long)time(nullptr);
       if (collect) sampleHistory(d["id"].as<String>(),value);
       if (abs(previous-value) >= (type=="analog" ? 1.0f : 0.5f)) { broadcastState(d["id"].as<String>(),value); deviceChanged(d["id"].as<String>(),value); }

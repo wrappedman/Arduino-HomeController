@@ -14,7 +14,7 @@
 | Example protected dry contact | 14 | GPIO14 → isolated/protected input; configure pull-up if appropriate |
 | Example analog sensor | 1 | 0–3.3 V conditioned ADC1 input, never directly connect higher voltage |
 
-Firmware allowlist: GPIO 1–7, 14–18, 21, 38–42, 47 (digital/relay); ADC1 on 1–7 only. Reserved: 0 (BOOT), 8–9 (RTC), 10–13 (SD), 19–20 (USB), 26–37 (flash/PSRAM and board constraints), 43–46 (console/strapping), other unlisted pins. GPIO48 is reserved because it may be shared with an onboard LED. **These are conservative software defaults, not a universal electrical safety certificate.**
+Firmware allowlist: GPIO 1–7, 14–18, 21, 38–42, 47 (digital/relay); ADC1 on 1–7 only. GPIO 39–42 are additionally used by the ESP32-S3 USB Serial/JTAG debug interface (reported as `jtag` by `/api/hardware/board`); leave them free if you intend to debug over JTAG. Reserved: 0 (BOOT), 8–9 (RTC), 10–13 (SD), 19–20 (USB), 26–37 (flash/PSRAM and board constraints), 43–46 (console/strapping), other unlisted pins. GPIO48 is reserved because it may be shared with an onboard LED. **These are conservative software defaults, not a universal electrical safety certificate.**
 
 ```text
 3.3 V sensor/RTC/SD supply ───── controller 3V3 (within regulator budget)
