@@ -19,6 +19,23 @@ jobs:
       - run: npm test
       - run: node --check data/app.js
       - run: python3 -m unittest discover -s test -p 'test_*.py'
+  arduino-ide-sketch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install Arduino IDE board core and sketch libraries
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@2.0.17 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install 'ArduinoJson@6.21.5'
+          arduino-cli lib install 'WebSockets@2.6.1'
+      - name: Compile the exact Arduino IDE sketch
+        run: |
+          arduino-cli compile --fqbn 'esp32:esp32:esp32s3:FlashSize=16M,FlashMode=qio,PSRAM=opi,CDCOnBoot=default' --build-path "$RUNNER_TEMP/shap-arduino-build" arduino/SHAP
+          test -s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin"
+          cmp arduino/SHAP/partitions.csv "$RUNNER_TEMP/shap-arduino-build/partitions.csv"
+          test "$(stat -c %s "$RUNNER_TEMP/shap-arduino-build/SHAP.bin")" -lt 5242880
   firmware:
     runs-on: ubuntu-latest
     steps:
