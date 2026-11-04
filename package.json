@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Development-only tests. Production UI has zero npm dependencies.",
   "scripts": {
-    "test": "node test/ui-smoke.cjs",
+    "test": "node test/ui-smoke.cjs && node test/api-client.cjs",
     "demo": "python3 -m http.server 4173 --bind 0.0.0.0 --directory data",
     "screenshots": "node scripts/capture-guide.cjs",
     "test:api-browser": "node scripts/verify-real-api.cjs"
