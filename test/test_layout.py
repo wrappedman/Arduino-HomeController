@@ -38,6 +38,14 @@ class ReleaseLayout(unittest.TestCase):
         for filename in ('index.html','app.css','app.js'):
             self.assertLess((ROOT/'data'/filename).stat().st_size,128*1024)
 
+    def test_recovery_button_is_nonblocking_and_after_boot(self):
+        main=(ROOT/'src/main.cpp').read_text()
+        network=(ROOT/'src/Network.cpp').read_text()
+        self.assertIn('shap::tickRecoveryButton();',main)
+        self.assertNotIn('while (digitalRead(0)',main)
+        self.assertIn('millis()-pressedAt>=5000',network)
+        self.assertIn('millis()-bootMs<2000',network)
+
     def test_reserved_pins_covered_in_both_layers(self):
         firmware=(ROOT/'src/Hardware.cpp').read_text()
         frontend=(ROOT/'data/app.js').read_text()

@@ -1,6 +1,6 @@
 # Security model and operational warnings
 
-- First setup AP has a random per-controller 16-character password persisted in NVS and shown on serial. Provisioning is only available while network/admin setup is incomplete. Keep physical access controlled. Recovery BOOT hold clears Wi-Fi credentials, *not* the administrator account.
+- First setup AP has a random per-controller 16-character password persisted in NVS and shown on serial. Provisioning is only available while network/admin setup is incomplete. Keep physical access controlled. Hold BOOT/GPIO0 continuously for five seconds **after startup** to clear Wi-Fi credentials, *not* the administrator account. Do not hold it during reset: GPIO0 is a ROM boot strap and the device may enter download mode instead.
 - Passwords are PBKDF2-HMAC-SHA256 with a random 16-byte salt and 100,000 iterations. Credentials and Wi-Fi password are in NVS, not in exported backups. NVS is **not encrypted by this application**; enable flash encryption/secure boot with a manufacturing key strategy before commercial deployment.
 - Session cookie uses HttpOnly + SameSite Strict, a random 256-bit token, and an 8-hour idle window. State-changing routes require a separate random CSRF token and same-origin checks when Origin is present. Five failed login attempts cause a one-minute throttle. A single active session is maintained; reboot invalidates it.
 - WebSocket only publishes state after a single-use, 30-second ticket from an authenticated API call. It never handles incoming hardware commands.

@@ -16,7 +16,7 @@ pio run -t buildfs          # check web asset packaging (without flashing)
 ## Hardware acceptance checklist (not yet performed)
 
 1. Confirm DevKitC-1 board variant, N16R8 flash/PSRAM mode, actual pinout and partition size; boot from both OTA slots.
-2. Without relay power: first boot setup AP password, SSID/admin wizard, reconnect, login/cookie/CSRF and setup rejection after provisioning.
+2. Without relay power: first boot setup AP password, SSID/admin wizard, reconnect, login/cookie/CSRF and setup rejection after provisioning; after boot hold BOOT for five seconds and confirm only Wi-Fi credentials clear.
 3. With a **low-voltage** test fixture: output OFF during boot/reset/brownout, active-high/low control, maximum ON timer and interlock, invalid pins and duplicate GPIO rejection, disconnected LAN with local rule still executing.
 4. With conditioned inputs: digital changes, analog calibration, rule condition and delay, queue saturation, stale/deleted device behavior.
 5. Insert/remove SD during sampling and read history; cycle power during config writes, backup, restore and OTA; verify no unintended output energization.

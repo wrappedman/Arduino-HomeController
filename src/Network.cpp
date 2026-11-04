@@ -32,4 +32,21 @@ void tickNetwork() {
     if (!apRunning && millis()-bootMs>45000) startAP(); // recovery AP; main API remains authenticated
   }
 }
+// Press BOOT for five continuous seconds *after* firmware has started.
+// No busy wait: control and automation continue during the hold.
+void tickRecoveryButton() {
+  static unsigned long pressedAt=0;
+  static bool fired=false;
+  if (millis()-bootMs<2000 || setupMode) return;
+  if (digitalRead(0)==HIGH) { pressedAt=0; fired=false; return; }
+  if (!pressedAt) pressedAt=millis();
+  if (!fired && millis()-pressedAt>=5000) {
+    fired=true;
+    prefs.remove("ssid"); prefs.remove("wifi_pass");
+    Serial.println("BOOT held after startup: network credentials cleared; restarting into setup AP");
+    recordEvent("Physical network recovery requested");
+    restartAt=millis()+500;
+  }
+}
+
 }

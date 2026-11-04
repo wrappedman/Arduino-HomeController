@@ -44,6 +44,7 @@ void deviceChanged(const String& id, float value);
 void initNetwork();
 void setClock(time_t stamp);
 void tickNetwork();
+void tickRecoveryButton();
 void initApi();
 void tickApi();
 void initSecurity();
