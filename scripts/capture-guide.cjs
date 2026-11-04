@@ -27,6 +27,7 @@ fs.mkdirSync(output, { recursive: true });
     await capture('04-overview');
     await page.locator('.sidebar [data-nav="settings"]').click();
     await page.locator('[data-action="setup-preview"]').click();
+    assert.equal(await page.locator('.setup-guide-link').count(),1);
     await capture('01-welcome');
     await page.locator('#setup-form button[type="submit"]').click();
     await page.locator('#f-ssid').fill('MyHome-WiFi');

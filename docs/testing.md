@@ -8,10 +8,10 @@ npm test
 python3 -m unittest discover -s test -p 'test_*.py'
 node --check data/app.js
 pio run                    # requires PlatformIO package registry/toolchain access
-pio run -t uploadfs         # check web asset packaging
+pio run -t buildfs          # check web asset packaging (without flashing)
 ```
 
-`test/test_guide.py` verifies local fonts and all referenced screenshots. `scripts/capture-guide.cjs` runs Chromium against the real frontend to verify publish → visible widget → reload persistence → mapped control, and generates the guide screenshots. `test/test_layout.py` checks the 16 MB OTA partition bounds, local asset sizes and reserved pin conventions. `test/ui-smoke.cjs` uses jsdom to exercise all UI navigation screens, designer widget addition/save, simulated device command and simulated device registration. It does **not** exercise a real controller, a browser layout engine, firmware compilation or electrical outputs.
+`test/test_guide.py` verifies local fonts and all referenced screenshots. `scripts/capture-guide.cjs` runs Chromium against the real frontend to verify publish → visible widget → reload persistence → mapped control, and generates the guide screenshots. `test/test_layout.py` checks the 16 MB OTA partition bounds, local asset sizes and reserved pin conventions. `test/ui-smoke.cjs` uses jsdom to exercise all UI navigation screens, designer widget addition/save, simulated device command and simulated device registration. jsdom alone does **not** exercise a real controller or browser layout; the Chromium browser script does verify real browser rendering and interactions. Neither exercises physical GPIO or electrical outputs.
 
 ## Hardware acceptance checklist (not yet performed)
 
@@ -28,9 +28,9 @@ pio run -t uploadfs         # check web asset packaging
 
 | Check | Result |
 |---|---|
-| JavaScript syntax, jsdom smoke, partition/pin static checks | Passed locally |
+| JavaScript syntax, jsdom smoke, Chromium browser workflow, layout/guide static checks | Passed locally |
 | Offline UI assets | No external runtime dependencies |
-| PlatformIO compile | Local sandbox package registry inaccessible (`HTTPClientError`); GitHub Actions build job is the required compile checkpoint. See the latest run before flashing. |
+| PlatformIO compile + LittleFS image | **Passed** for the custom N16R8 board in [GitHub Actions run 41783491385](https://github.com/wrappedman/Arduino-HomeController/actions/runs/41783491385); local sandbox registry remains inaccessible. Build artifacts include binary images and checksums. |
 | Board, wiring, relay, RTC, SD, OTA and reliability tests | Not run: no physical ESP32-S3 fixture in the sandbox |
 
-The PRD's final acceptance criteria cannot be claimed until the compile, hardware, security and power-loss checks above are completed.
+The PRD's final acceptance criteria cannot be claimed until the hardware, security, OTA and power-loss checks above are completed. A successful compile does not establish runtime safety.

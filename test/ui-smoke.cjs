@@ -12,6 +12,9 @@ const click=s=>{const el=dom.window.document.querySelector(s);assert.ok(el,'Miss
 for(const page of ['devices','hardware','sensors','automations','scenes','charts','events','settings','overview','designer']){click(`[data-nav="${page}"]`);assert.ok(dom.window.document.querySelector('.page-head, .hero'),'Missing heading on '+page)}
 click('[data-widget-type="label"]');assert.ok(dom.window.document.querySelectorAll('.canvas-widget').length>=5);
 const title=dom.window.document.querySelector('[data-prop="title"]');title.value='My custom room';title.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+click('[data-action="preview"]');
+assert.ok(dom.window.document.querySelector('.canvas .published-widget'),'Preview mode must render real widgets on the design canvas');
+click('[data-action="preview"]');
 click('[data-action="publish"]');await tick();
 assert.ok(dom.window.document.querySelector('[data-published-widget]'),'Published dashboard must render on Overview');
 assert.match(dom.window.document.querySelector('.published-grid').textContent,/My custom room/);
