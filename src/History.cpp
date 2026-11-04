@@ -50,7 +50,15 @@ void sensorHistory(const String& id, DynamicJsonDocument& result) {
     if (f) {
       // Bound the response to the last 48 rows. The file is bounded to 256 KiB.
       String lines[48]; size_t count=0;
-      while (f.available()) { String line=f.readStringUntil('\n'); if (line.length()<3 || line.length()>64) continue; lines[count++%48]=line; }
+      char line[65]; size_t length=0; bool oversized=false;
+      while (f.available()) {
+        int next=f.read(); if (next<0) break;
+        if (next=='\n') {
+          if (!oversized && length>=3) { line[length]=0; lines[count++%48]=line; }
+          length=0; oversized=false;
+        } else if (length<sizeof(line)-1 && !oversized) line[length++]=(char)next;
+        else oversized=true; // Corrupted rows cannot grow a heap String without limit.
+      }
       f.close();
       size_t total=min(count,(size_t)48);
       for (size_t i=0;i<total;i++) {

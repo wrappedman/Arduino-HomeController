@@ -3,7 +3,23 @@ namespace shap {
 DynamicJsonDocument config(MAX_CONFIG_BYTES);
 Preferences prefs;
 static bool validConfig(JsonDocument& doc) {
-  return doc["schema"] == 1 && doc["board"] == BOARD && doc["devices"].is<JsonArray>() && doc["automations"].is<JsonArray>() && doc["scenes"].is<JsonArray>() && doc["schedules"].is<JsonArray>() && doc["dashboard"]["widgets"].is<JsonArray>();
+  if (doc["schema"] != 1 || doc["board"] != BOARD || !doc["devices"].is<JsonArray>() ||
+      !doc["automations"].is<JsonArray>() || !doc["scenes"].is<JsonArray>() ||
+      !doc["schedules"].is<JsonArray>() || !doc["dashboard"]["widgets"].is<JsonArray>()) return false;
+  JsonArrayConst devices=doc["devices"].as<JsonArrayConst>();
+  if (devices.size()>MAX_DEVICES || doc["automations"].as<JsonArrayConst>().size()>MAX_RULES ||
+      doc["scenes"].as<JsonArrayConst>().size()>MAX_SCENES ||
+      doc["schedules"].as<JsonArrayConst>().size()>MAX_SCHEDULES ||
+      doc["dashboard"]["widgets"].as<JsonArrayConst>().size()>MAX_WIDGETS) return false;
+  String error;
+  for (size_t i=0;i<devices.size();i++) {
+    String id=devices[i]["id"] | "";
+    if (id.isEmpty() || id.length()>16 || !validateDevice(devices[i],id,error)) return false;
+    for (size_t j=i+1;j<devices.size();j++) {
+      if (devices[j]["id"]==id || (devices[i]["type"]!="virtual" && devices[j]["type"]!="virtual" && devices[i]["pin"]==devices[j]["pin"])) return false;
+    }
+  }
+  return true;
 }
 void ensureConfig() {
   config.clear();

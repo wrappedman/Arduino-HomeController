@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node test/ui-smoke.cjs",
     "demo": "python3 -m http.server 4173 --bind 0.0.0.0 --directory data",
-    "screenshots": "node scripts/capture-guide.cjs"
+    "screenshots": "node scripts/capture-guide.cjs",
+    "test:api-browser": "node scripts/verify-real-api.cjs"
   },
   "devDependencies": {
     "jsdom": "^26.1.0",

@@ -3,7 +3,6 @@
 namespace shap {
 DynamicJsonDocument events(8192);
 static unsigned long onSince[MAX_DEVICES] = {};
-static bool isOutput(const String& type) { return type == "relay"; }
 static bool validPin(int pin, const String& type) {
   // Conservative DevKitC-1 N16R8 allowlist. 0/19/20/26-37/43-46 are excluded.
   bool safe = ((pin >= 1 && pin <= 18) && pin != 8 && pin != 9 && pin != 10 && pin != 11 && pin != 12 && pin != 13) || pin == 21 || (pin >= 38 && pin <= 42) || pin == 47;
@@ -27,8 +26,13 @@ bool validateDevice(JsonVariantConst device, const String& ignoreId, String& err
 }
 void recordEvent(const String& message, const String& category) {
   JsonArray list = events.as<JsonArray>();
-  if (list.size() >= 40) list.remove(0);
-  JsonObject e = list.createNestedObject(); e["message"] = message; e["category"] = category;
+  if (list.size() >= 40 || events.memoryUsage()>7000) {
+    list.remove(0);
+    // ArduinoJson uses a monotonic pool; remove() alone does NOT release memory.
+    if (!events.garbageCollect()) events.to<JsonArray>(); // clear history if memory is exhausted
+    list=events.as<JsonArray>();
+  }
+  JsonObject e = list.createNestedObject(); e["message"] = message.substring(0,120); e["category"] = category.substring(0,20);
   e["at"] = clockValid ? (long)time(nullptr) : 0; e["uptime"] = millis()/1000;
   String payload; DynamicJsonDocument d(320); d["type"]="event"; d["data"]=e; serializeJson(d,payload); broadcastMessage(payload);
 }
@@ -48,7 +52,7 @@ void initHardware() {
     } else if (type=="analog" && validPin(pin,type)) { pinMode(pin, INPUT); }
     if (index < MAX_DEVICES) onSince[index++] = 0;
   }
-  recordEvent("Controller started; relay outputs set to safe OFF state");
+  recordEvent("GPIO initialized; relay outputs set to safe OFF state");
 }
 void applyOutputs() {
   int i=0;
@@ -69,6 +73,7 @@ static JsonObject findDevice(const String& id) {
 bool commandDevice(const String& id, const String& command, const String& source) {
   JsonObject d=findDevice(id); if (d.isNull() || (d["enabled"] | true)==false) return false;
   String type=d["type"] | ""; if (type!="relay" && type!="virtual") return false;
+  if (type=="relay" && !validPin(d["pin"] | -1,type)) return false;
   float old=d["value"] | 0.0f;
   float next=command=="on" ? 1 : command=="off" ? 0 : command=="toggle" ? (old>0?0:1) : -1;
   if (next<0) return false;
@@ -81,7 +86,7 @@ bool commandDevice(const String& id, const String& command, const String& source
   d["value"]=next; int pin=d["pin"] | -1;
   if (type=="relay" && validPin(pin,type)) {
     digitalWrite(pin, next == (d["activeLow"] | false) ? LOW : HIGH);
-    int idx=0; for (JsonObject it : config["devices"].as<JsonArray>()) { if (it["id"]==id) { onSince[idx]=next ? millis() : 0; break; } idx++; }
+    int idx=0; for (JsonObject it : config["devices"].as<JsonArray>()) { if (it["id"]==id) { if (idx<MAX_DEVICES) onSince[idx]=next ? millis() : 0; break; } idx++; }
   }
   if (next!=old) { recordEvent(d["name"].as<String>() + (next?" turned on":" turned off") + " by " + source,"device"); broadcastState(id,next); deviceChanged(id,next); }
   return true;
