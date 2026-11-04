@@ -1,6 +1,6 @@
 # ESP32-S3 DevKitC-1 N16R8 prototype wiring
 
-**Verify your specific PCB, pin labels and supply before wiring.** The custom `boards/shap-esp32-s3-n16r8.json` selects 16 MB QIO flash and 8 MB OPI PSRAM; firmware and LittleFS images compile for this configuration, but actual electrical behavior remains unvalidated. GPIO mapping depends on the chosen DevKitC-1 variant; the graphic in the UI is a functional conceptual pin map, not a measured physical PCB drawing.
+**Verify your specific PCB, pin labels and supply before wiring.** The custom `boards/shap-esp32-s3-n16r8.json` selects 16 MB QIO flash and 8 MB OPI PSRAM; the exported firmware sketch targets this configuration (web assets are now embedded in firmware; no filesystem image is needed), but actual electrical behavior remains unvalidated. GPIO mapping depends on the chosen DevKitC-1 variant; the graphic in the UI is a functional conceptual pin map, not a measured physical PCB drawing.
 
 | Function | GPIO | Connection / restriction |
 |---|---:|---|

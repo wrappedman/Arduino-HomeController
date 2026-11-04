@@ -1,4 +1,5 @@
 #include "Platform.h"
+#include "EmbeddedAssets.h"
 #include <mbedtls/sha256.h>
 #include <cstdio>
 namespace shap {
@@ -139,9 +140,14 @@ static void handleCollection(const String& path) {
   }
   errorResponse(405,"method_not_allowed","Method not supported");
 }
-static void staticFile(const String& path, const String& type) {
-  File f=LittleFS.open(path,"r"); if (!f) { web.send(404,"text/plain","Web assets missing. Run pio run -t uploadfs"); return; }
-  web.sendHeader("Cache-Control","no-cache"); web.streamFile(f,type); f.close();
+static void staticFile(const String& path) {
+  const EmbeddedAsset* asset=findEmbeddedAsset(path);
+  if (!asset) { web.send(404,"text/plain","Asset not found in firmware"); return; }
+  web.sendHeader("Cache-Control","no-cache");
+  if (asset->gzipped) web.sendHeader("Content-Encoding","gzip");
+  web.setContentLength(asset->length);
+  web.send(200,asset->mime,"");
+  web.sendContent_P(reinterpret_cast<const char*>(asset->data),asset->length);
 }
 static void handleFallback() {
   String path=web.uri();
@@ -156,20 +162,20 @@ static void handleFallback() {
     if (collectionKey(path).length()) { handleCollection(path); return; }
     errorResponse(404,"not_found","API route not found"); return;
   }
-  if (path=="/" || path=="/index.html") { staticFile("/index.html","text/html"); return; }
-  if (path=="/app.css") { staticFile("/app.css","text/css"); return; }
-  if (path=="/app.js") { staticFile("/app.js","application/javascript"); return; }
-  if (path=="/guide-fa.html") { staticFile(path,"text/html; charset=utf-8"); return; }
-  if (path=="/guide-fa.css") { staticFile(path,"text/css"); return; }
+  if (path=="/" || path=="/index.html") { staticFile("/index.html"); return; }
+  if (path=="/app.css") { staticFile("/app.css"); return; }
+  if (path=="/app.js") { staticFile("/app.js"); return; }
+  if (path=="/guide-fa.html") { staticFile(path); return; }
+  if (path=="/guide-fa.css") { staticFile(path); return; }
   if (path.startsWith("/guide/") || path.startsWith("/fonts/")) {
     // Only flat filenames: block directory traversal and unknown formats.
     String filename=path.substring(path.lastIndexOf('/')+1);
     if (filename.isEmpty() || filename.length()>64 || filename.indexOf("..")>=0) { web.send(404,"text/plain","Not found"); return; }
     for (size_t i=0;i<filename.length();i++) if (!isAlphaNumeric(filename[i]) && filename[i]!='-' && filename[i]!='_' && filename[i]!='.') { web.send(404,"text/plain","Not found"); return; }
-    if (path.startsWith("/guide/") && filename.endsWith(".jpg")) { staticFile(path,"image/jpeg"); return; }
-    if (path=="/guide/wiring.svg" || path=="/guide/upload-flow.svg") { staticFile(path,"image/svg+xml"); return; }
-    if (path.startsWith("/fonts/") && filename.endsWith(".woff2")) { staticFile(path,"font/woff2"); return; }
-    if (path=="/fonts/OFL.txt") { staticFile(path,"text/plain; charset=utf-8"); return; }
+    if (path.startsWith("/guide/") && filename.endsWith(".jpg")) { staticFile(path); return; }
+    if (path=="/guide/wiring.svg" || path=="/guide/upload-flow.svg") { staticFile(path); return; }
+    if (path.startsWith("/fonts/") && filename.endsWith(".woff2")) { staticFile(path); return; }
+    if (path=="/fonts/OFL.txt") { staticFile(path); return; }
   }
   web.send(404,"text/plain","Not found");
 }

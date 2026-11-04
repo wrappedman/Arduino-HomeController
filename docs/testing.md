@@ -1,6 +1,6 @@
 # Test plan and current evidence
 
-For first-time installation without Python or PlatformIO, use [راهنمای نصب از صفر](install-fa.md), not the test commands below.
+For offline installation with Arduino IDE, use [راهنمای نصب آفلاین](install-fa.md); the commands below are development-only and are not needed by users.
 
 ## Automated checks
 
@@ -9,8 +9,8 @@ npm ci
 npm test
 python3 -m unittest discover -s test -p 'test_*.py'
 node --check data/app.js
-pio run                    # requires PlatformIO package registry/toolchain access
-pio run -t buildfs          # check web asset packaging (without flashing)
+python3 scripts/export_arduino.py   # developer-only: refresh checked-in sketch after editing data/src
+pio run                    # CI-only: compile the same exported Arduino sketch
 ```
 
 `scripts/verify-real-api.cjs` runs the browser in firmware API mode with controlled HTTP responses, checking session, CSRF, dashboard PUT/GET, device command and reload (without GPIO hardware). Run `CHROMIUM_PATH=/path/to/chromium npm run test:api-browser` while serving `data/` locally. `test/test_guide.py` verifies local fonts and all referenced screenshots. `scripts/capture-guide.cjs` runs Chromium against the real frontend to verify publish → visible widget → reload persistence → mapped control, and generates the guide screenshots. `test/test_layout.py` checks the 16 MB OTA partition bounds, local asset sizes and reserved pin conventions. `test/ui-smoke.cjs` uses jsdom to exercise all UI navigation screens, designer widget addition/save, simulated device command and simulated device registration. `test/api-client.cjs` exercises the authenticated firmware-mode frontend against a controlled API response fixture, including CSRF and dashboard commands; both run in CI via `npm test`. jsdom alone does **not** exercise a real controller or browser layout; the Chromium browser script does verify real browser rendering and interactions. Neither exercises physical GPIO or electrical outputs.
@@ -32,7 +32,7 @@ pio run -t buildfs          # check web asset packaging (without flashing)
 |---|---|
 | JavaScript syntax, jsdom smoke, Chromium browser workflow, layout/guide static checks | Passed locally |
 | Offline UI assets | No external runtime dependencies |
-| PlatformIO compile + LittleFS image | **Passed** for the custom N16R8 board in [GitHub Actions run 41783491385](https://github.com/wrappedman/Arduino-HomeController/actions/runs/41783491385); local sandbox registry remains inaccessible. Build artifacts include binary images and checksums. |
+| Exported Arduino sketch compile (CI via PlatformIO) | Pending new CI run for the single-upload embedded sketch; previously published run 41783491385 built the older two-image layout and is NOT evidence for this layout. Direct Arduino IDE compilation and board flashing are not yet verified. |
 | Board, wiring, relay, RTC, SD, OTA and reliability tests | Not run: no physical ESP32-S3 fixture in the sandbox |
 
 The PRD's final acceptance criteria cannot be claimed until the hardware, security, OTA and power-loss checks above are completed. A successful compile does not establish runtime safety.

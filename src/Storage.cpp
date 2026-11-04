@@ -1,4 +1,5 @@
 #include "Platform.h"
+#include <esp_partition.h>
 namespace shap {
 DynamicJsonDocument config(MAX_CONFIG_BYTES);
 Preferences prefs;
@@ -30,10 +31,25 @@ void ensureConfig() {
   JsonObject dashboard = config.createNestedObject("dashboard");
   dashboard["name"] = "Home"; dashboard.createNestedArray("widgets");
 }
+// Autoformat only a genuinely erased/virgin partition; never wipe a damaged existing config.
+static bool virginFilesystem() {
+  const esp_partition_t* partition=esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_DATA_SPIFFS,nullptr);
+  if (!partition) return false;
+  uint8_t bytes[256];
+  for (size_t at=0;at<partition->size;at+=sizeof(bytes)) {
+    size_t count=min(sizeof(bytes),partition->size-at);
+    if (esp_partition_read(partition,at,bytes,count)!=ESP_OK) return false;
+    for (size_t i=0;i<count;i++) if (bytes[i]!=0xff) return false;
+  }
+  return true;
+}
 bool loadConfig() {
   if (!LittleFS.begin(false)) {
-    Serial.println("LittleFS mount failed; flash assets/config unavailable. Upload filesystem image.");
-    ensureConfig(); return false;
+    if (!virginFilesystem() || !LittleFS.begin(true)) {
+      Serial.println("LittleFS mount failed; existing data NOT formatted. Web assets are still embedded in firmware.");
+      ensureConfig(); return false;
+    }
+    Serial.println("Blank config partition initialized; embedded web assets need no filesystem upload");
   }
   for (auto path : {"/config.json", "/config.bak"}) {
     File f = LittleFS.open(path, "r");

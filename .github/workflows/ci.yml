@@ -53,12 +53,11 @@ jobs:
             exit 1
           fi
           tail -n 30 pio-build.log
-      - run: pio run -t buildfs
       - name: Verify release images
         run: |
           cd .pio/build/esp32-s3-devkitc-1-n16r8
-          sha256sum firmware.bin littlefs.bin bootloader.bin partitions.bin > checksums.sha256
-          test -s firmware.bin && test -s littlefs.bin && test -s bootloader.bin && test -s partitions.bin
+          sha256sum firmware.bin bootloader.bin partitions.bin > checksums.sha256
+          test -s firmware.bin && test -s bootloader.bin && test -s partitions.bin
       - uses: actions/cache/save@v4
         if: ${{ always() && steps.pio-cache.outputs.cache-hit != 'true' }}
         with:
@@ -72,7 +71,6 @@ jobs:
           name: shap-esp32-s3-n16r8-unvalidated
           path: |
             .pio/build/esp32-s3-devkitc-1-n16r8/firmware.bin
-            .pio/build/esp32-s3-devkitc-1-n16r8/littlefs.bin
             .pio/build/esp32-s3-devkitc-1-n16r8/bootloader.bin
             .pio/build/esp32-s3-devkitc-1-n16r8/partitions.bin
             .pio/build/esp32-s3-devkitc-1-n16r8/checksums.sha256

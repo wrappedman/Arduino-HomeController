@@ -46,6 +46,17 @@ class ReleaseLayout(unittest.TestCase):
         self.assertIn('millis()-pressedAt>=5000',network)
         self.assertIn('millis()-bootMs<2000',network)
 
+    def test_arduino_sketch_contains_all_firmware_and_assets(self):
+        sketch=ROOT/'arduino/SHAP'
+        self.assertTrue((sketch/'SHAP.ino').exists())
+        self.assertEqual((sketch/'partitions.csv').read_bytes(), (ROOT/'partitions/ota_16mb.csv').read_bytes())
+        for file in (ROOT/'src').iterdir():
+            if file.suffix in ('.cpp','.h'):
+                self.assertEqual(file.read_bytes(),(sketch/file.name).read_bytes(),file.name)
+        api=(ROOT/'src/Api.cpp').read_text()
+        self.assertIn('findEmbeddedAsset(path)',api)
+        self.assertNotIn('LittleFS.open(path',api)
+
     def test_reserved_pins_covered_in_both_layers(self):
         firmware=(ROOT/'src/Hardware.cpp').read_text()
         frontend=(ROOT/'data/app.js').read_text()
