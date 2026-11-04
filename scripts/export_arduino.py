@@ -3,6 +3,7 @@ Run before committing UI/firmware edits; the exported sketch requires no filesys
 """
 from pathlib import Path
 import gzip
+import hashlib
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,7 @@ with (SRC / 'EmbeddedAssets.cpp').open('w') as out:
         compressed = suffix in ('.html','.css','.js','.svg','.txt')
         blob = gzip.compress(contents, compresslevel=9, mtime=0) if compressed else contents
         identifier = f'asset_{i}'
+        out.write(f'// /{file.relative_to(DATA).as_posix()} sha256={hashlib.sha256(contents).hexdigest()}\n')
         out.write(f'const uint8_t {identifier}[] PROGMEM = {{\n')
         for offset in range(0,len(blob),32):
             out.write('  ' + ','.join(f'0x{value:02x}' for value in blob[offset:offset+32]) + ',\n')

@@ -49,59 +49,11 @@ jobs:
           test -n "$firmware" && test -s "$firmware" || { ls -lh "$RUNNER_TEMP/shap-arduino-build"; echo '::error::Arduino firmware binary missing'; exit 1; }
           cmp arduino/SHAP/partitions.csv "$RUNNER_TEMP/shap-arduino-build/partitions.csv" || { echo '::error::Custom partitions.csv not used'; exit 1; }
           test "$(stat -c %s "$firmware")" -lt 5242880 || { echo '::error::Arduino firmware exceeds 5MB app partition'; exit 1; }
-  firmware:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: platformio.ini
-      - run: python -m pip install platformio
-      - uses: actions/cache/restore@v4
-        id: pio-cache
-        with:
-          path: |
-            ~/.platformio/platforms
-            ~/.platformio/packages
-            ~/.platformio/.cache
-          key: pio-espressif32-6-13-arduino2-${{ runner.os }}
-      - name: Compile ESP32-S3 firmware
-        shell: bash
-        run: |
-          if ! pio run > pio-build.log 2>&1; then
-            tail -n 85 pio-build.log
-            python - <<'PYLOG'
-          from pathlib import Path
-          import re
-          lines=Path('pio-build.log').read_text(errors='replace').splitlines()
-          issues=[line for line in lines if re.search(r'error:|fatal error|Error:|FAILED|undefined reference|\*\*\*',line,re.I)]
-          text='\n'.join((issues[-35:]+['--- final lines ---']+lines[-18:]))[-3700:]
-          print('::error title=PlatformIO build failure::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
-          PYLOG
-            exit 1
-          fi
-          tail -n 30 pio-build.log
-      - name: Verify release images
-        run: |
-          cd .pio/build/esp32-s3-devkitc-1-n16r8
-          sha256sum firmware.bin bootloader.bin partitions.bin > checksums.sha256
-          test -s firmware.bin && test -s bootloader.bin && test -s partitions.bin
-      - uses: actions/cache/save@v4
-        if: ${{ always() && steps.pio-cache.outputs.cache-hit != 'true' }}
-        with:
-          path: |
-            ~/.platformio/platforms
-            ~/.platformio/packages
-            ~/.platformio/.cache
-          key: pio-espressif32-6-13-arduino2-${{ runner.os }}
+          (cd "$RUNNER_TEMP/shap-arduino-build" && sha256sum *.bin > checksums.sha256)
       - uses: actions/upload-artifact@v4
         with:
-          name: shap-esp32-s3-n16r8-unvalidated
+          name: shap-arduino-ide-n16r8-unvalidated
           path: |
-            .pio/build/esp32-s3-devkitc-1-n16r8/firmware.bin
-            .pio/build/esp32-s3-devkitc-1-n16r8/bootloader.bin
-            .pio/build/esp32-s3-devkitc-1-n16r8/partitions.bin
-            .pio/build/esp32-s3-devkitc-1-n16r8/checksums.sha256
+            ${{ runner.temp }}/shap-arduino-build/*.bin
+            ${{ runner.temp }}/shap-arduino-build/checksums.sha256
           if-no-files-found: error

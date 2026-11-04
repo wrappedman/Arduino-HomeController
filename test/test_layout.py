@@ -2,7 +2,6 @@
 from pathlib import Path
 import csv
 import re
-import json
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,13 +22,17 @@ class ReleaseLayout(unittest.TestCase):
         self.assertEqual(sum(k=='app' for _,_,k,_ in partitions),2)
         self.assertEqual([b-a for a,b,k,_ in partitions if k=='app'],[0x500000]*2)
 
-    def test_board_manifest_matches_flash_and_app_partition(self):
-        board=json.loads((ROOT/'boards/shap-esp32-s3-n16r8.json').read_text())
-        ini=(ROOT/'platformio.ini').read_text()
-        self.assertIn('board = shap-esp32-s3-n16r8',ini)
-        self.assertEqual(board['upload']['flash_size'],'16MB')
-        self.assertEqual(board['upload']['maximum_size'],0x500000)
-        self.assertEqual(board['build']['arduino']['memory_type'],'qio_opi')
+    def test_arduino_custom_partition_and_board_menu_documented(self):
+        guide=(ROOT/'docs/install-fa.md').read_text()
+        self.assertIn('ESP32S3 Dev Module',guide)
+        self.assertIn('16MB',guide)
+        self.assertIn('OPI',guide)
+        self.assertIn('QIO',guide)
+        self.assertIn('16M Flash (3MB APP/9.9MB FATFS)',guide)
+        workflow=(ROOT/'.github/workflows/ci.yml').read_text()
+        self.assertIn('arduino-cli compile',workflow)
+        self.assertIn('PartitionScheme=app3M_fat9M_16MB',workflow)
+        self.assertNotIn('pio run',workflow)
 
     def test_embedded_assets_are_local_and_bounded(self):
         index=(ROOT/'data/index.html').read_text()
@@ -53,6 +56,12 @@ class ReleaseLayout(unittest.TestCase):
         for file in (ROOT/'src').iterdir():
             if file.suffix in ('.cpp','.h'):
                 self.assertEqual(file.read_bytes(),(sketch/file.name).read_bytes(),file.name)
+        import hashlib
+        embedded=(ROOT/'src/EmbeddedAssets.cpp').read_text()
+        for data in (ROOT/'data').rglob('*'):
+            if data.is_file():
+                digest=hashlib.sha256(data.read_bytes()).hexdigest()
+                self.assertIn(f'// /{data.relative_to(ROOT/"data").as_posix()} sha256={digest}',embedded)
         api=(ROOT/'src/Api.cpp').read_text()
         self.assertIn('findEmbeddedAsset(path)',api)
         self.assertNotIn('LittleFS.open(path',api)
