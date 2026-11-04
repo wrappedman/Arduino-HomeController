@@ -36,7 +36,10 @@ jobs:
             tail -n 85 pio-build.log
             python - <<'PYLOG'
           from pathlib import Path
-          text='\n'.join(Path('pio-build.log').read_text(errors='replace').splitlines()[-85:])
+          import re
+          lines=Path('pio-build.log').read_text(errors='replace').splitlines()
+          issues=[line for line in lines if re.search(r'error:|fatal error|Error:|FAILED|undefined reference|\*\*\*',line,re.I)]
+          text='\n'.join((issues[-35:]+['--- final lines ---']+lines[-18:]))[-3700:]
           print('::error title=PlatformIO build failure::'+text.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
           PYLOG
             exit 1
