@@ -2,6 +2,7 @@
 from pathlib import Path
 import csv
 import re
+import json
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,9 +23,18 @@ class ReleaseLayout(unittest.TestCase):
         self.assertEqual(sum(k=='app' for _,_,k,_ in partitions),2)
         self.assertEqual([b-a for a,b,k,_ in partitions if k=='app'],[0x500000]*2)
 
+    def test_board_manifest_matches_flash_and_app_partition(self):
+        board=json.loads((ROOT/'boards/shap-esp32-s3-n16r8.json').read_text())
+        ini=(ROOT/'platformio.ini').read_text()
+        self.assertIn('board = shap-esp32-s3-n16r8',ini)
+        self.assertEqual(board['upload']['flash_size'],'16MB')
+        self.assertEqual(board['upload']['maximum_size'],0x500000)
+        self.assertEqual(board['build']['arduino']['memory_type'],'qio_opi')
+
     def test_embedded_assets_are_local_and_bounded(self):
         index=(ROOT/'data/index.html').read_text()
         self.assertNotRegex(index,r'<(?:script|link)[^>]+(?:https?:)?//')
+        self.assertLess(sum(p.stat().st_size for p in (ROOT/'data').rglob('*') if p.is_file()),3*1024*1024)
         for filename in ('index.html','app.css','app.js'):
             self.assertLess((ROOT/'data'/filename).stat().st_size,128*1024)
 
