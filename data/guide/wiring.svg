@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="570" viewBox="0 0 1100 570" role="img" aria-label="Low-voltage prototype connections: ESP32-S3 GPIO14, DS3231 and microSD">
+<defs><style>text{font-family:Vazirmatn,Arial,sans-serif;fill:#1b3040} .title{font-size:25px;font-weight:700}.sub{font-size:15px;fill:#647785}.pin{font-size:15px;font-weight:700}.box{fill:#fff;stroke:#d7e4e4;stroke-width:2}.line{fill:none;stroke-width:4;stroke-linecap:round}.green{stroke:#16a683}.blue{stroke:#5688bc}.orange{stroke:#e6a460}.gray{stroke:#98aab4}.warn{font-size:14px;fill:#a45245}</style></defs>
+<rect width="1100" height="570" rx="22" fill="#f4f8f8"/>
+<text x="550" y="44" text-anchor="middle" class="title">مدار آزمایش کم‌ولتاژ SHAP — برد ESP32-S3 DevKitC-1 N16R8</text>
+<text x="550" y="72" text-anchor="middle" class="sub">شماتیک اتصال منطقی؛ شمارهٔ پایه‌های چاپ‌شده روی برد واقعی را قبل از سیم‌کشی کنترل کنید</text>
+<rect x="378" y="108" width="345" height="373" rx="22" fill="#15383d"/>
+<rect x="461" y="220" width="180" height="138" rx="12" fill="#233e42" stroke="#6a9798" stroke-width="3"/>
+<text x="551" y="277" text-anchor="middle" font-size="21" fill="#f0f8f5">ESP32-S3</text>
+<text x="551" y="304" text-anchor="middle" font-size="14" fill="#a8d2c3">N16R8 · 3.3V Logic</text>
+<text x="394" y="157" class="pin" fill="#fff">GPIO 8 · SDA</text><text x="394" y="191" class="pin" fill="#fff">GPIO 9 · SCL</text><text x="394" y="400" class="pin" fill="#fff">GPIO 14 · RELAY</text>
+<text x="709" y="153" text-anchor="end" class="pin" fill="#fff">GPIO 10 · CS</text><text x="709" y="184" text-anchor="end" class="pin" fill="#fff">GPIO 11 · MOSI</text><text x="709" y="215" text-anchor="end" class="pin" fill="#fff">GPIO 12 · SCK</text><text x="709" y="382" text-anchor="end" class="pin" fill="#fff">GPIO 13 · MISO</text>
+<rect x="45" y="120" width="260" height="125" rx="13" class="box"/><text x="175" y="162" text-anchor="middle" class="title" font-size="20">DS3231 اختیاری</text><text x="175" y="193" text-anchor="middle" class="sub">SDA→8 · SCL→9</text><text x="175" y="219" text-anchor="middle" class="sub">3.3V · GND</text>
+<rect x="45" y="335" width="260" height="130" rx="13" class="box"/><text x="175" y="377" text-anchor="middle" class="title" font-size="20">رله ایزولهٔ نمونه</text><text x="175" y="408" text-anchor="middle" class="sub">IN→GPIO14</text><text x="175" y="436" text-anchor="middle" class="sub">تغذیه و بایاسِ ایمن مستقل</text>
+<rect x="795" y="150" width="260" height="164" rx="13" class="box"/><text x="925" y="192" text-anchor="middle" class="title" font-size="20">microSD اختیاری</text><text x="925" y="224" text-anchor="middle" class="sub">CS→10 · MOSI→11</text><text x="925" y="250" text-anchor="middle" class="sub">SCK→12 · MISO→13</text><text x="925" y="280" text-anchor="middle" class="sub">فقط ماژول 3.3V</text>
+<path d="M305 175 H378" class="line blue"/><path d="M305 398 H378" class="line green"/><path d="M723 198 H795" class="line orange"/>
+<rect x="45" y="503" width="1010" height="49" rx="10" fill="#fff2eb" stroke="#f7d3ba"/><text x="550" y="534" text-anchor="middle" class="warn">هیچ بار شهری یا موتور را مستقیم به GPIO وصل نکنید؛ آزمون اولیه فقط با مدار کم‌ولتاژ و قطع‌کن مستقل انجام شود.</text>
+</svg>

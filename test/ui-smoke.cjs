@@ -11,12 +11,19 @@ const click=s=>{const el=dom.window.document.querySelector(s);assert.ok(el,'Miss
 (async()=>{await tick();assert.match(dom.window.document.body.textContent,/SIMULATED DEMO/);
 for(const page of ['devices','hardware','sensors','automations','scenes','charts','events','settings','overview','designer']){click(`[data-nav="${page}"]`);assert.ok(dom.window.document.querySelector('.page-head, .hero'),'Missing heading on '+page)}
 click('[data-widget-type="label"]');assert.ok(dom.window.document.querySelectorAll('.canvas-widget').length>=5);
-click('[data-action="save-dashboard"]');await tick();
-click('[data-nav="overview"]');click('[data-command="living"]');await tick();assert.match(dom.window.document.body.textContent,/SIMULATED DEMO/);
+const title=dom.window.document.querySelector('[data-prop="title"]');title.value='My custom room';title.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+click('[data-action="publish"]');await tick();
+assert.ok(dom.window.document.querySelector('[data-published-widget]'),'Published dashboard must render on Overview');
+assert.match(dom.window.document.querySelector('.published-grid').textContent,/My custom room/);
+let mapped=dom.window.document.querySelector('[data-published-widget="w1"] [data-command="living"]');assert.ok(mapped,'Mapped widget must control a device');
+const old=mapped.getAttribute('aria-pressed');mapped.click();await tick();
+assert.notEqual(dom.window.document.querySelector('[data-published-widget="w1"] [data-command="living"]').getAttribute('aria-pressed'),old);
+click('[data-action="navigate:designer"]');assert.ok(dom.window.document.querySelector('.canvas-widget'),'Customize button must navigate to designer');
+click('[data-nav="overview"]');assert.match(dom.window.document.body.textContent,/SIMULATED DEMO/);
 click('[data-nav="sensors"]');
 const slider=dom.window.document.querySelector('[data-sensor="temperature"]');assert.ok(slider,'Missing simulated sensor control');slider.value='30';slider.dispatchEvent(new dom.window.Event('change',{bubbles:true}));await tick();assert.match(dom.window.document.body.textContent,/30\.0°C/);
 click('[data-nav="scenes"]');click('[data-action="scene:scene1"]');await tick();assert.match(dom.window.document.body.textContent,/Good night/);
 click('[data-nav="devices"]');click('[data-action="add:devices"]');assert.ok(dom.window.document.querySelector('#modal-form'));
 const f=dom.window.document.querySelector('#modal-form');f.querySelector('[name="name"]').value='Test relay';f.querySelector('[name="pin"]').value='14';f.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await tick();assert.match(dom.window.document.body.textContent,/Test relay/);
-assert.deepEqual(errors,[]);console.log('UI smoke tests passed: navigation, designer, commands, sensor adjustment, scenes, device creation');dom.window.close()
+assert.deepEqual(errors,[]);console.log('UI smoke tests passed: navigation, published widget persistence and commands, sensor adjustment, scenes, device creation');dom.window.close()
 })().catch(e=>{console.error(e,errors);process.exitCode=1;dom.window.close()});
